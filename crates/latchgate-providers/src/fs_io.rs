@@ -10,13 +10,21 @@
 use std::ffi::CString;
 use std::io;
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd, RawFd};
+use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use latchgate_core::crypto::sha256_raw;
 use latchgate_core::fs_path::{evaluate_path_detailed, DetailedPathDecision, GlobPattern};
 use latchgate_core::FsOperation;
+
+/// `O_PATH` is Linux-only. On macOS we fall back to `O_RDONLY` which opens
+/// a real fd instead of a path-only handle — functionally equivalent for
+/// our use (directory traversal and fstat), just slightly less restrictive.
+#[cfg(target_os = "linux")]
+const O_PATH: libc::c_int = libc::O_PATH;
+#[cfg(not(target_os = "linux"))]
+const O_PATH: libc::c_int = libc::O_RDONLY;
 
 // Types
 
@@ -145,13 +153,14 @@ pub fn open_root_fd(path: &Path) -> Result<(OwnedFd, PathBuf), FsHostError> {
 
     let c_path = path_to_cstring(&canonical)?;
 
-    // SAFETY: opening a directory with O_PATH|O_DIRECTORY|O_CLOEXEC is a
-    // standard POSIX operation. The CString is valid for the duration of
-    // the call. On success we get a valid fd that OwnedFd will close.
+    // SAFETY: opening a directory with O_PATH|O_DIRECTORY|O_CLOEXEC (Linux)
+    // or O_RDONLY|O_DIRECTORY|O_CLOEXEC (macOS) is a standard POSIX
+    // operation. The CString is valid for the duration of the call.
+    // On success we get a valid fd that OwnedFd will close.
     let raw_fd = unsafe {
         libc::open(
             c_path.as_ptr(),
-            libc::O_PATH | libc::O_DIRECTORY | libc::O_CLOEXEC,
+            O_PATH | libc::O_DIRECTORY | libc::O_CLOEXEC,
         )
     };
     if raw_fd == -1 {
@@ -310,6 +319,7 @@ fn secure_open_parent(
 #[cfg(target_os = "linux")]
 mod openat2_linux {
     use super::*;
+    use std::os::unix::io::RawFd;
     use std::sync::atomic::{AtomicU8, Ordering};
 
     /// 0 = untested, 1 = available, 2 = unavailable.
@@ -379,13 +389,13 @@ fn open_beneath(
     flags: i32,
     mode: u32,
 ) -> Result<OwnedFd, FsHostError> {
-    let c_path =
-        CString::new(relative).map_err(|_| FsHostError::PathInvalid("null in path".into()))?;
     let full_flags = flags | libc::O_CLOEXEC | libc::O_NOFOLLOW;
 
     // Try openat2 on Linux (preferred — single atomic check).
     #[cfg(target_os = "linux")]
     {
+        let c_path =
+            CString::new(relative).map_err(|_| FsHostError::PathInvalid("null in path".into()))?;
         match openat2_linux::try_openat2(root_fd.as_raw_fd(), &c_path, full_flags, mode) {
             Ok(Some(fd)) => return Ok(fd),
             Ok(None) => { /* ENOSYS — fall through to component walk */ }
@@ -429,7 +439,7 @@ fn component_walk_open(
             libc::openat(
                 current_fd.as_raw_fd(),
                 c_name.as_ptr(),
-                libc::O_PATH | libc::O_NOFOLLOW | libc::O_DIRECTORY | libc::O_CLOEXEC,
+                O_PATH | libc::O_NOFOLLOW | libc::O_DIRECTORY | libc::O_CLOEXEC,
             )
         };
         if fd == -1 {
@@ -749,7 +759,7 @@ fn delete_sync(config: &FsHostConfig, path: &str) -> Result<FsDeleteResult, FsHo
         libc::openat(
             parent_fd.as_raw_fd(),
             c_name.as_ptr(),
-            libc::O_PATH | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+            O_PATH | libc::O_NOFOLLOW | libc::O_CLOEXEC,
         )
     };
     if target_raw == -1 {
@@ -1004,6 +1014,31 @@ mod tests {
     fn open_root_fd_rejects_nonexistent() {
         let result = open_root_fd(Path::new("/nonexistent_latchgate_test_dir"));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn open_root_fd_rejects_regular_file() {
+        // O_DIRECTORY must reject non-directories on all platforms, including
+        // macOS where O_PATH is unavailable and we fall back to O_RDONLY.
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("not_a_dir.txt");
+        std::fs::write(&file_path, b"data").unwrap();
+        let result = open_root_fd(&file_path);
+        assert!(result.is_err(), "open_root_fd must reject a regular file");
+    }
+
+    #[test]
+    fn open_root_fd_succeeds_on_valid_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let (fd, canonical) = open_root_fd(dir.path()).unwrap();
+        // fd must be usable as a base for openat — verify with fstat.
+        let stat = fstat_fd(fd.as_fd()).unwrap();
+        assert_eq!(
+            stat.st_mode & libc::S_IFMT,
+            libc::S_IFDIR,
+            "root fd must refer to a directory"
+        );
+        assert!(canonical.is_absolute());
     }
 
     #[test]

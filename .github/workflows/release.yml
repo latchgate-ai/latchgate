@@ -245,7 +245,11 @@ jobs:
       - name: Generate SBOM
         run: |
           cargo install cargo-cyclonedx --locked
-          cargo cyclonedx --format json --output-file sbom-${{ matrix.target }}.json
+          cargo cyclonedx --format json --top-level
+          # cargo-cyclonedx names output after the crate; rename for release.
+          SBOM=$(find . -maxdepth 1 -name '*.cdx.json' | head -1)
+          [ -n "$SBOM" ] || { echo "::error::No SBOM file generated"; exit 1; }
+          cp "$SBOM" sbom-${{ matrix.target }}.json
 
       - name: Attest SBOM
         uses: actions/attest-sbom@36590ecaf038d6630c74f2da259095627d52ac11 # v4
