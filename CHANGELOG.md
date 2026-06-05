@@ -7,6 +7,27 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.1.2] — 2026-06-05
+
+### Fixed
+
+- Cross-compilation for `aarch64-unknown-linux-gnu`: the 0.1.1 fix installed
+  `clang` in the Cross container but did not account for Cross overriding the
+  linker to `aarch64-linux-gnu-gcc` via environment variable, which rejects the
+  `-fuse-ld=lld` flag from `.cargo/config.toml`. The release workflow now strips
+  the conflicting target section before cross builds; `Cross.toml` additionally
+  installs `lld` for completeness.
+- SBOM generation on virtual workspace: `cargo cyclonedx --top-level` produces
+  no output when the workspace root has no `[package]` section. Changed to
+  `--manifest-path crates/latchgate-bin/Cargo.toml` to target the shipped
+  binary, capturing the full transitive dependency tree.
+- OpenSSF Scorecard workflow: updated `github/codeql-action/upload-sarif` from
+  a v3 pin (imposter commit `b22c662…` rejected by the scorecard webapp) to
+  v4.35.1 (`c10b806…`).
+- Dead code warning on aarch64: `BPF_JGE` constant gated with
+  `#[cfg(target_arch = "x86_64")]` to match its only usage site (x32 ABI
+  guard in seccomp filter).
+
 ## [0.1.1] — 2026-06-05
 
 ### Fixed
@@ -399,5 +420,6 @@ AI SDK, OpenAI Agents, Pydantic AI.
   `spec/` => `definitions/`, `policies/` => `definitions/policies/`.
   Install-output layouts (`.latchgate/`, `share/latchgate/`) unchanged.
 
+[0.1.2]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.2
 [0.1.1]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.1
 [0.1.0]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.0
