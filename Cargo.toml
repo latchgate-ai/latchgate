@@ -85,7 +85,7 @@ serde_yaml_ng = "0.10"
 toml       = "1"
 
 # Crypto & identity
-jsonwebtoken            = "9"
+jsonwebtoken            = "10"
 p256                    = { version = "0.13", features = ["ecdsa", "pem", "jwk"] }
 rand                    = "0.8"
 sha2                    = "0.11"
