@@ -23,7 +23,7 @@ x-hardened: &hardened
 services:
   redis:
     <<: *hardened
-    image: redis:7-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+    image: redis:8-alpine@sha256:09160599abd229764c0fb44cb6be640294e1d360a54b19985ab4843dcf2d90f1
     user: redis
     read_only: true
     ports:
