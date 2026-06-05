@@ -123,7 +123,7 @@ RUN cp "target/$(cat /rust-target)/release/latchgate" /latchgate-bin
 
 # ── Runtime base ─────────────────────────────────────────────────────────────
 
-FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc AS runtime-base
+FROM alpine:3.23@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11 AS runtime-base
 
 ARG VERSION=dev
 
