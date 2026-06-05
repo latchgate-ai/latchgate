@@ -32,6 +32,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the file. Replaced with a line-by-line parser that distinguishes TOML section
   headers from inline arrays.
 
+### Improved
+
+- OpenSSF Scorecard — Token-Permissions: top-level workflow permissions in
+  `release.yml` narrowed to `contents: read`; `id-token: write`,
+  `attestations: write`, and `packages: write` pushed to job-level only where
+  required.
+- OpenSSF Scorecard — SAST: added CodeQL analysis workflow
+  (`.github/workflows/codeql.yml`) scanning on push, PR, and weekly schedule.
+- OpenSSF Scorecard — Pinned-Dependencies: `curl | python3` patterns in the
+  crate-age and PyPI-age checks rewritten to download to a temp file first,
+  avoiding the `downloadThenRun` flag.
+
 ## [0.1.2] — 2026-06-05 [YANKED]
 
 Release failed — the `.cargo/config.toml` rewriter in the release workflow

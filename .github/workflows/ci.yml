@@ -114,10 +114,15 @@ jobs:
                 /^source = /{if(n_ok&&v_ok) print; n_ok=0; v_ok=0}
               ' Cargo.lock 2>/dev/null)" 2>/dev/null && continue || true
 
-            # Query crates.io for publish date of this exact version
-            PUBLISHED=$(curl -sf "https://crates.io/api/v1/crates/${name}/${version}" \
+            # Query crates.io for publish date of this exact version.
+            # Download to file first — piping curl to python3 triggers the
+            # scorecard downloadThenRun check.
+            _tmp=$(mktemp)
+            curl -sf "https://crates.io/api/v1/crates/${name}/${version}" \
               -H "User-Agent: latchgate-ci (supply-chain-check)" \
-              | python3 -c "import sys,json; print(json.load(sys.stdin)['version']['created_at'])" 2>/dev/null) || continue
+              -o "$_tmp" || { rm -f "$_tmp"; continue; }
+            PUBLISHED=$(python3 -c "import json; print(json.load(open('$_tmp'))['version']['created_at'])" 2>/dev/null) || { rm -f "$_tmp"; continue; }
+            rm -f "$_tmp"
 
             PUB_EPOCH=$(date -d "$PUBLISHED" +%s 2>/dev/null) || continue
             AGE_DAYS=$(( (NOW - PUB_EPOCH) / 86400 ))
@@ -298,8 +303,11 @@ jobs:
           while IFS='==' read -r name _ version; do
             [ -n "$name" ] && [ -n "$version" ] || continue
 
-            PUBLISHED=$(curl -sf "https://pypi.org/pypi/${name}/${version}/json" \
-              | python3 -c "import sys,json; print(json.load(sys.stdin)['urls'][0]['upload_time_iso_8601'])" 2>/dev/null) || continue
+            _tmp=$(mktemp)
+            curl -sf "https://pypi.org/pypi/${name}/${version}/json" \
+              -o "$_tmp" || { rm -f "$_tmp"; continue; }
+            PUBLISHED=$(python3 -c "import json; print(json.load(open('$_tmp'))['urls'][0]['upload_time_iso_8601'])" 2>/dev/null) || { rm -f "$_tmp"; continue; }
+            rm -f "$_tmp"
 
             PUB_EPOCH=$(date -d "$PUBLISHED" +%s 2>/dev/null) || continue
             AGE_DAYS=$(( (NOW - PUB_EPOCH) / 86400 ))

@@ -9,10 +9,7 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
-  packages: write
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -117,6 +114,9 @@ jobs:
     name: Build (${{ matrix.target }})
     needs: providers
     runs-on: ${{ matrix.os }}
+    permissions:
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
