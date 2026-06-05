@@ -7,7 +7,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
-## [0.1.2] — 2026-06-05
+## [0.1.3] — 2026-06-06
 
 ### Fixed
 
@@ -27,6 +27,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Dead code warning on aarch64: `BPF_JGE` constant gated with
   `#[cfg(target_arch = "x86_64")]` to match its only usage site (x32 ABI
   guard in seccomp filter).
+- Release workflow TOML parser: the v0.1.2 regex-based `.cargo/config.toml`
+  section stripper stopped at `[` inside a `rustflags` array literal, corrupting
+  the file. Replaced with a line-by-line parser that distinguishes TOML section
+  headers from inline arrays.
+
+## [0.1.2] — 2026-06-05 [YANKED]
+
+Release failed — the `.cargo/config.toml` rewriter in the release workflow
+produced invalid TOML. Superseded by v0.1.3.
 
 ## [0.1.1] — 2026-06-05
 
@@ -420,6 +429,7 @@ AI SDK, OpenAI Agents, Pydantic AI.
   `spec/` => `definitions/`, `policies/` => `definitions/policies/`.
   Install-output layouts (`.latchgate/`, `share/latchgate/`) unchanged.
 
+[0.1.3]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.3
 [0.1.2]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.2
 [0.1.1]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.1
 [0.1.0]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.0
