@@ -10,7 +10,7 @@ Execution security kernel for AI agents.
 [Website](https://latchgate.ai) · [Docs](https://docs.latchgate.ai) · [Security model](https://docs.latchgate.ai/security-model/) · [Report a vulnerability](SECURITY.md)
 
 > [!IMPORTANT]
-> **v0.1.0 - first public release.** The security model is production-ready; the API and manifest format may have breaking changes until v1.0. Pin to a specific commit for production use.
+> The security model is production-ready; the API and manifest format may have breaking changes until v1.0. Pin to a specific commit for production use.
 
 ---
 

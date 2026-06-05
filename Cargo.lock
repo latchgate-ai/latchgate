@@ -2911,7 +2911,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-api"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "chrono",
@@ -2954,7 +2954,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-auth"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64ct",
  "chrono",
@@ -2980,7 +2980,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-bin"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "latchgate-api",
@@ -2994,7 +2994,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "clap",
@@ -3026,7 +3026,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-client"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bytes",
  "http-body-util",
@@ -3050,7 +3050,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-config"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "directories",
  "latchgate-core",
@@ -3065,7 +3065,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "globset",
@@ -3087,7 +3087,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-crypto"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "ed25519-dalek",
@@ -3101,7 +3101,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-embed"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "include_dir",
  "latchgate-config",
@@ -3117,7 +3117,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-kernel"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "arc-swap",
  "axum",
@@ -3144,7 +3144,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-ledger"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "latchgate-core",
@@ -3161,7 +3161,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-mcp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64ct",
  "clap",
@@ -3184,7 +3184,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-policy"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "latchgate-core",
  "regorus",
@@ -3198,7 +3198,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-providers"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "dashmap",
@@ -3226,7 +3226,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-registry"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "hex",
  "jsonschema",
@@ -3243,7 +3243,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-sandbox"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "hex",
  "latchgate-config",
@@ -3265,7 +3265,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-state"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "hex",
@@ -3283,7 +3283,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-stress"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "criterion",
  "hex",
@@ -3300,7 +3300,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-tests"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "chrono",
@@ -3333,7 +3333,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-tui"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "crossterm",
@@ -3352,7 +3352,7 @@ dependencies = [
 
 [[package]]
 name = "latchgate-webhooks"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bytes",
  "chrono",
