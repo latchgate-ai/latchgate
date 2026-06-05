@@ -165,7 +165,7 @@ uuid        = { version = "1", features = ["v7"] }
 # Dev / test (workspace-level)
 tempfile   = "3"
 tokio-test = "0.4"
-rcgen      = "0.13"
+rcgen      = "0.14"
 
 # WASM runtime
 wasmtime           = { version = "36.0.10", features = ["component-model", "async", "cranelift"] }
