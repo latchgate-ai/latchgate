@@ -31,14 +31,19 @@ body:
       options:
         - API / routing
         - Auth / DPoP / leases
+        - Crypto / signatures
         - Policy / OPA / approvals
         - Provider runtime / WASM
         - Ledger / receipts
+        - Agent sandbox
+        - Registry
+        - Webhooks
         - Configuration
         - CLI
+        - MCP
         - SDK (Python)
         - SDK (TypeScript)
-        - CI / build
+        - Documentation
         - Other
     validations:
       required: true
