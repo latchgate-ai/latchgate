@@ -67,8 +67,7 @@ impl UserDirs {
 ///
 /// Determines how unset path fields (`manifests_dir`, `wasm_providers_dir`,
 /// `ledger_db_path`) are resolved to absolute paths at load time.
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub enum ConfigSource {
     /// `--config <path>` or `$LATCHGATE_CONFIG`.
     Explicit(PathBuf),
@@ -82,7 +81,6 @@ pub enum ConfigSource {
     #[default]
     Defaults,
 }
-
 
 impl std::fmt::Display for ConfigSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

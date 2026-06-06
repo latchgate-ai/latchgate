@@ -36,7 +36,6 @@ pub enum IdentityProviderKind {
     Peercred,
 }
 
-
 /// Peercred identity provider configuration.
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct PeercredConfig {

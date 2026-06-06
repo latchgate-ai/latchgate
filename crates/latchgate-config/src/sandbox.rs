@@ -1226,7 +1226,7 @@ strict_for_actions = true
         fs::write(&real_bin, b"#!/bin/true\n").unwrap();
 
         let mount =
-            discover_agent_mount_in("codex", &[bin_dir.clone()]).expect("codex must be discovered");
+            discover_agent_mount_in("codex", std::slice::from_ref(&bin_dir)).expect("codex must be discovered");
         assert_eq!(mount, bin_dir);
         assert!(mount.join("codex").exists());
     }

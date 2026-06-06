@@ -139,14 +139,12 @@ impl WasmRuntime {
     /// Engine configuration:
     /// - Component model enabled (WIT-based provider interface).
     /// - Fuel consumption enabled (CPU metering per execution).
-    /// - Async support enabled (host I/O functions are async).
     /// - Epoch interruption enabled (wall-clock timeout enforcement).
     /// - Cranelift compiler (optimised native code generation).
     pub fn new(max_concurrent: usize) -> Result<Self, ProviderError> {
         let mut config = Config::new();
         config.wasm_component_model(true);
         config.consume_fuel(true);
-        config.async_support(true);
         config.epoch_interruption(true);
 
         let engine = Engine::new(&config).map_err(|e| ProviderError::ExecutionFailed {

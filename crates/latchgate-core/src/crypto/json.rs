@@ -144,8 +144,9 @@ pub fn json_compact_byte_len(value: &Value) -> usize {
             let mut c = ByteCounter(0);
             use std::fmt::Write;
             // serde_json::Number::Display delegates to itoa (ints) / ryu (floats),
-            // the same formatters used by the serializer.
-            write!(c, "{n}").expect("number formatting is infallible");
+            // the same formatters used by the serializer.  ByteCounter's Write
+            // impl is infallible (no I/O, just incrementing a counter).
+            let _ = write!(c, "{n}");
             c.0
         }
         Value::String(s) => 2 + json_escaped_byte_len(s),
