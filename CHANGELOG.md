@@ -7,6 +7,69 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.1.3] — 2026-06-06
+
+### Fixed
+
+- Cross-compilation for `aarch64-unknown-linux-gnu`: the 0.1.1 fix installed
+  `clang` in the Cross container but did not account for Cross overriding the
+  linker to `aarch64-linux-gnu-gcc` via environment variable, which rejects the
+  `-fuse-ld=lld` flag from `.cargo/config.toml`. The release workflow now strips
+  the conflicting target section before cross builds; `Cross.toml` additionally
+  installs `lld` for completeness.
+- SBOM generation on virtual workspace: `cargo cyclonedx --top-level` produces
+  no output when the workspace root has no `[package]` section. Changed to
+  `--manifest-path crates/latchgate-bin/Cargo.toml` to target the shipped
+  binary, capturing the full transitive dependency tree.
+- OpenSSF Scorecard workflow: updated `github/codeql-action/upload-sarif` from
+  a v3 pin (imposter commit `b22c662…` rejected by the scorecard webapp) to
+  v4.35.1 (`c10b806…`).
+- Dead code warning on aarch64: `BPF_JGE` constant gated with
+  `#[cfg(target_arch = "x86_64")]` to match its only usage site (x32 ABI
+  guard in seccomp filter).
+- Release workflow TOML parser: the v0.1.2 regex-based `.cargo/config.toml`
+  section stripper stopped at `[` inside a `rustflags` array literal, corrupting
+  the file. Replaced with a line-by-line parser that distinguishes TOML section
+  headers from inline arrays.
+
+### Improved
+
+- OpenSSF Scorecard — Token-Permissions: top-level workflow permissions in
+  `release.yml` narrowed to `contents: read`; `id-token: write`,
+  `attestations: write`, and `packages: write` pushed to job-level only where
+  required.
+- OpenSSF Scorecard — SAST: added CodeQL analysis workflow
+  (`.github/workflows/codeql.yml`) scanning on push, PR, and weekly schedule.
+- OpenSSF Scorecard — Pinned-Dependencies: `curl | python3` patterns in the
+  crate-age and PyPI-age checks rewritten to download to a temp file first,
+  avoiding the `downloadThenRun` flag.
+
+## [0.1.2] — 2026-06-05 [YANKED]
+
+Release failed — the `.cargo/config.toml` rewriter in the release workflow
+produced invalid TOML. Superseded by v0.1.3.
+
+## [0.1.1] — 2026-06-05
+
+### Fixed
+
+- Cross-platform `O_PATH` handling: macOS builds failed because `libc::O_PATH`
+  is Linux-only. Introduced a platform-conditional constant that falls back to
+  `O_RDONLY` on non-Linux targets, preserving the same security invariants
+  (`O_DIRECTORY`, `O_NOFOLLOW`, `O_CLOEXEC` are enforced on all platforms).
+- Cross-compilation for `aarch64-unknown-linux-gnu`: added `Cross.toml` to
+  install `clang` in the cross container.
+- SBOM generation: replaced removed `--output-file` flag in `cargo-cyclonedx`
+  with `--top-level` and deterministic rename.
+- OpenSSF Scorecard workflow: corrected `ossf/scorecard-action` commit hash.
+
+### Added
+
+- Minisign signing of release artifacts and `install.sh` in the release
+  pipeline; `install.sh` now verifies signatures and fails closed when
+  `minisign` is absent (bypassable with `LATCHGATE_SKIP_SIGNATURE_CHECK=1`).
+- npm trusted publishing via OIDC (replaces `NPM_TOKEN`).
+
 ## [0.1.0] — 2026-06-01
 
 First public release. The security model is production-ready; the API and
@@ -378,4 +441,7 @@ AI SDK, OpenAI Agents, Pydantic AI.
   `spec/` => `definitions/`, `policies/` => `definitions/policies/`.
   Install-output layouts (`.latchgate/`, `share/latchgate/`) unchanged.
 
+[0.1.3]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.3
+[0.1.2]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.2
+[0.1.1]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.1
 [0.1.0]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.0

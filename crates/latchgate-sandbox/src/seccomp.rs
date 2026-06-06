@@ -281,6 +281,7 @@ const BPF_ALU: u16 = 0x04;
 const BPF_AND: u16 = 0x50;
 const BPF_JMP: u16 = 0x05;
 const BPF_JEQ: u16 = 0x10;
+#[cfg(target_arch = "x86_64")]
 const BPF_JGE: u16 = 0x30;
 const BPF_K: u16 = 0x00;
 const BPF_RET: u16 = 0x06;

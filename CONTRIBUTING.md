@@ -76,7 +76,7 @@ make audit              # cargo audit + cargo deny
 make ci                 # full local gate: check + test + audit (run before pushing)
 ```
 
-**What CI enforces (v0.1.0).** GitHub Actions runs the fast gate on every push and PR: format, clippy, unit tests (`cargo test --workspace --lib`), a release-build test-hooks guard, dependency audit (`cargo deny` + `cargo audit`), image-digest pin verification, and the SDK suites. The Docker-dependent suites — `make test-standalone`, `make test-integration`, and `make test-conformance` — are **not** run in hosted CI: they require Redis, OPA, and a reproducible WASM provider build that are impractical on the standard GitHub-hosted runners. **You are responsible for running them locally before opening a PR that touches security-sensitive code** (see step 4 below). `make ci` runs the full local gate (`check` + `test` + `audit`); run it before pushing.
+**What CI enforces.** GitHub Actions runs the fast gate on every push and PR: format, clippy, unit tests (`cargo test --workspace --lib`), a release-build test-hooks guard, dependency audit (`cargo deny` + `cargo audit`), image-digest pin verification, and the SDK suites. The Docker-dependent suites — `make test-standalone`, `make test-integration`, and `make test-conformance` — are **not** run in hosted CI: they require Redis, OPA, and a reproducible WASM provider build that are impractical on the standard GitHub-hosted runners. **You are responsible for running them locally before opening a PR that touches security-sensitive code** (see step 4 below). `make ci` runs the full local gate (`check` + `test` + `audit`); run it before pushing.
 
 **Running a single test:**
 

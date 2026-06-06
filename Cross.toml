@@ -1,0 +1,5 @@
+[target.aarch64-unknown-linux-gnu]
+# clang + lld are required: .cargo/config.toml sets linker = "clang" with
+# -fuse-ld=lld for this target. Without lld the GCC cross-compiler fallback
+# rejects the flag (-fuse-ld=lld is clang-only).
+pre-build = ["apt-get update -qq && apt-get install -y -qq clang lld >/dev/null 2>&1"]
