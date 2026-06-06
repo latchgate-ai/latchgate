@@ -168,8 +168,8 @@ tokio-test = "0.4"
 rcgen      = "0.13"
 
 # WASM runtime
-wasmtime           = { version = "36.0.10", features = ["component-model", "async", "cranelift"] }
-wasmtime-wasi      = { version = "36.0.10" }
+wasmtime           = { version = "45", features = ["component-model", "async", "cranelift"] }
+wasmtime-wasi      = { version = "45" }
 
 # Host I/O clients (used by latchgate-providers)
 lettre        = { version = "0.11.22", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder", "hostname"] }
