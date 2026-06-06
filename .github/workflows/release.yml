@@ -152,24 +152,27 @@ jobs:
       - name: Strip linker overrides for cross builds
         if: matrix.cross
         run: |
-          # .cargo/config.toml sets linker="clang" with -fuse-ld=lld for
-          # Linux targets. Cross overrides the linker to aarch64-linux-gnu-gcc
-          # (env var precedence), which rejects the clang-only -fuse-ld=lld
-          # flag that remains in rustflags. Remove the entire aarch64 target
-          # section so Cross uses its native toolchain cleanly.
+          # .cargo/config.toml sets linker="clang" + -fuse-ld=lld for both
+          # Linux targets. Inside the Cross container, neither clang nor lld
+          # is available — and the x86_64 section affects build scripts
+          # (host-side compilation). Strip ALL Linux target sections.
           python3 << 'PYEOF'
           import pathlib, re
           p = pathlib.Path('.cargo/config.toml')
           lines = p.read_text().splitlines(keepends=True)
+          STRIP_SECTIONS = {
+              '[target.aarch64-unknown-linux-gnu]',
+              '[target.x86_64-unknown-linux-gnu]',
+          }
           is_header = lambda s: bool(re.match(r'\s*\[\w', s))
           out, skip = [], False
           for line in lines:
               s = line.strip()
-              if s.startswith('# ') and 'Linux aarch64' in s:
+              if s.startswith('# ') and ('Linux aarch64' in s or 'Linux x86' in s):
                   skip = True
                   continue
               if skip and is_header(line):
-                  if s == '[target.aarch64-unknown-linux-gnu]':
+                  if s in STRIP_SECTIONS:
                       continue
                   skip = False
               if not skip:
