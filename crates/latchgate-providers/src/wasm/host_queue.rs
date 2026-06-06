@@ -80,8 +80,8 @@ impl latchgate::provider::io_queue::Host for WasmHostState {
 
         let confirm = channel
             .basic_publish(
-                "", // default exchange — routes by queue name
-                &routing_key,
+                "".into(), // default exchange — routes by queue name
+                lapin::types::ShortString::from(routing_key.as_str()),
                 lapin::options::BasicPublishOptions::default(),
                 &req.payload,
                 amqp_props,
@@ -96,15 +96,15 @@ impl latchgate::provider::io_queue::Host for WasmHostState {
             .await
             .map_err(|e| format!("AMQP confirm failed: {e}"))?
         {
-            lapin::publisher_confirm::Confirmation::Ack(Some(ack)) => ack.delivery_tag.to_string(),
-            lapin::publisher_confirm::Confirmation::Ack(None) => String::new(),
-            lapin::publisher_confirm::Confirmation::Nack(nack) => {
+            lapin::Confirmation::Ack(Some(ack)) => ack.delivery_tag.to_string(),
+            lapin::Confirmation::Ack(None) => String::new(),
+            lapin::Confirmation::Nack(nack) => {
                 return Err(format!(
                     "AMQP broker NACKed message (delivery_tag={})",
                     nack.map_or(0, |n| n.delivery_tag)
                 ));
             }
-            lapin::publisher_confirm::Confirmation::NotRequested => String::new(),
+            lapin::Confirmation::NotRequested => String::new(),
         };
 
         debug!(
