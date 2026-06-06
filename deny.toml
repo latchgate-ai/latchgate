@@ -24,6 +24,36 @@ ignore = [
     { id = "RUSTSEC-2025-0057", reason = "transitive via wasmtime 36 => fxprof-processed-profile (unconditional dep); cannot remove without wasmtime major upgrade; no known active exploit; profiling structs only" },
 
     # review_before: 2026-09-01
+    # Re-triaged 2026-06-03: upstream blocker unchanged, lapin has not released
+    # an async-io 2.x compatible version. No new exploits. Pushing to Q3.
+    # Blocker: lapin 2.5.5 => amq-protocol => async-reactor-trait 1.1.0 =>
+    # async-io 1.13.0 => futures-lite 1.13.0 => fastrand 1.9.0 => instant.
+    # fastrand 2.x exists in the tree but async-io 1.x is not interchangeable
+    # with async-io 2.x for lapin's internal executor trait. Forcing fastrand >= 2
+    # via [patch] does not help because async-io 1.x has its own dep on fastrand 1.x.
+    # Risk: unmaintained crate; no known active exploit; reachable only through
+    # the AMQP stack, which is optional (gated by amqp_url in config).
+    # Action: remove once lapin releases a version using async-io 2.x, or if we
+    # migrate to a different AMQP client that avoids this chain entirely.
+    { id = "RUSTSEC-2024-0384", reason = "transitive via lapin=>async-reactor-trait=>async-io 1.x=>futures-lite 1.x=>fastrand 1.x=>instant; cannot force-remove without lapin upstream change; no known active exploit; AMQP path only" },
+
+    # review_before: 2026-09-01
+    # Re-triaged 2026-06-03: upstream blocker unchanged, rustls-connector has
+    # not released a version that drops rustls-pemfile. No new exploits. Pushing to Q3.
+    # Blocker: the advisory applies to ALL versions of rustls-pemfile — the entire
+    # crate was archived in August 2025. The migration is to use rustls-pki-types
+    # >= 1.9.0 directly via the PemObject trait, but the fix must happen upstream:
+    #   (1) lapin => amq-protocol-tcp => tcp-stream => rustls-connector =>
+    #       rustls-native-certs => rustls-pemfile.
+    #       Requires rustls-connector / tcp-stream to migrate upstream.
+    # Risk: rustls-pemfile 2.x is already a thin wrapper over rustls-pki-types —
+    # no behavioral divergence expected; no known active exploit.
+    # PEM parsing is only performed at TLS handshake setup, not per-request.
+    # Action: remove once rustls-connector/tcp-stream publish versions that depend
+    # on rustls-pki-types >= 1.9.0 directly.
+    { id = "RUSTSEC-2025-0134", reason = "transitive via lapin=>tcp-stream=>rustls-connector; full crate archived Aug 2025; migration requires rustls-connector upstream change; no known active exploit; TLS setup path only" },
+
+    # review_before: 2026-09-01
     # Blocker: rand 0.8.5 is pinned by cap-rand (wasmtime-wasi), sqlx-postgres,
     # ed25519-dalek, and p256 — all require rand_core 0.6 which is incompatible
     # with rand 0.9+/0.10+. cargo update -p rand@0.8.5 does not resolve to 0.8.6
@@ -70,9 +100,11 @@ skip = [
     # getrandom 0.3 (ahash => jsonschema) vs 0.4 (uuid, tempfile)
     { name = "getrandom", version = "0.3" },
 
+    # lapin => async-io 1.x => socket2 0.4 vs tokio => socket2 0.6
+    { name = "socket2", version = "0.4" },
+
     # windows-sys / windows-targets version splits (transitive, cannot be unified)
     #
-    #   0.45  <- jni => rustls-platform-verifier => reqwest => jsonschema
     #   0.48  <- sqlx => sqlx-postgres => etcetera => windows-sys 0.48
     #   0.52  <- ring => jsonwebtoken => windows-sys 0.52
     #   0.59  <- cap-*/system-interface => wasmtime-wasi
@@ -80,41 +112,31 @@ skip = [
     #   0.61  <- mio => tokio / clap / tracing-subscriber => windows-sys 0.61
     #
     # windows-targets / windows_* arch crates track windows-sys versions:
-    #   0.42  <- windows-targets 0.42 (jni/windows-sys 0.45 chain)
     #   0.48  <- windows-targets 0.48 (sqlx chain)
     #   0.52  <- windows-targets 0.52 (ring/jsonwebtoken chain)
     #   0.53  <- windows-targets 0.53 (wasmtime => windows-sys 0.60 chain)
-    { name = "windows-sys", version = "0.45" },
     { name = "windows-sys", version = "0.48" },
     { name = "windows-sys", version = "0.52" },
     { name = "windows-sys", version = "0.59" },
     { name = "windows-sys", version = "0.60" },
-    { name = "windows-targets", version = "0.42" },
     { name = "windows-targets", version = "0.48" },
     { name = "windows-targets", version = "0.52" },
     { name = "windows-targets", version = "0.53" },
 
     # windows_* arch crates — skip each minor series present in the lock file
-    { name = "windows_aarch64_gnullvm", version = "0.42" },
     { name = "windows_aarch64_gnullvm", version = "0.48" },
     { name = "windows_aarch64_gnullvm", version = "0.52" },
-    { name = "windows_aarch64_msvc",    version = "0.42" },
     { name = "windows_aarch64_msvc",    version = "0.48" },
     { name = "windows_aarch64_msvc",    version = "0.52" },
-    { name = "windows_i686_gnu",        version = "0.42" },
     { name = "windows_i686_gnu",        version = "0.48" },
     { name = "windows_i686_gnu",        version = "0.52" },
     { name = "windows_i686_gnullvm",    version = "0.52" },
-    { name = "windows_i686_msvc",       version = "0.42" },
     { name = "windows_i686_msvc",       version = "0.48" },
     { name = "windows_i686_msvc",       version = "0.52" },
-    { name = "windows_x86_64_gnu",      version = "0.42" },
     { name = "windows_x86_64_gnu",      version = "0.48" },
     { name = "windows_x86_64_gnu",      version = "0.52" },
-    { name = "windows_x86_64_gnullvm",  version = "0.42" },
     { name = "windows_x86_64_gnullvm",  version = "0.48" },
     { name = "windows_x86_64_gnullvm",  version = "0.52" },
-    { name = "windows_x86_64_msvc",     version = "0.42" },
     { name = "windows_x86_64_msvc",     version = "0.48" },
     { name = "windows_x86_64_msvc",     version = "0.52" },
 
@@ -132,16 +154,24 @@ skip = [
     { name = "wast",            version = "35" },
     { name = "winnow",          version = "0.7" },
 
+    # lapin => async-io 1.x pulls old ecosystem (rustix 0.37, linux-raw-sys 0.3,
+    # polling 2, io-lifetimes 1, openssl-probe 0.1, rustls-native-certs 0.7,
+    # security-framework 2). Cannot resolve without lapin upstream change.
+    { name = "rustix",              version = "0.37" },
+    { name = "linux-raw-sys",       version = "0.3" },
+    { name = "polling",             version = "2" },
+    { name = "io-lifetimes",        version = "1" },
+    { name = "openssl-probe",       version = "0.1" },
+    { name = "rustls-native-certs", version = "0.7" },
+    { name = "security-framework",  version = "2" },
+
     # lettre => nom 8 vs lapin => amq-protocol => nom 7
-    # NOTE: verify with `cargo deny check` after upgrade — lapin 3.0 may have
-    # upgraded amq-protocol to nom 8, in which case this entry can be removed.
     { name = "nom", version = "7" },
 
-    # object_store 0.13 pulls rand 0.9 transitively;
+    # object_store 0.13 / lapin => p12-keystore pull rand 0.10 transitively;
     # latchgate pins rand 0.8 (rand_core 0.6 compat with ed25519-dalek/p256)
-    { name = "rand",       version = "0.9" },
-    { name = "rand_chacha", version = "0.9" },
-    { name = "rand_core",  version = "0.9" },
+    { name = "rand",       version = "0.10" },
+    { name = "rand_core",  version = "0.10" },
 
     # sqlx => webpki-roots 0.26 vs lettre => webpki-roots 1.0
     { name = "webpki-roots", version = "0.26" },
