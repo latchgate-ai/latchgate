@@ -92,7 +92,7 @@ pub struct WasmRuntime {
     /// PostgreSQL connection pool. Set once at startup via `init_database()`.
     db_pool: tokio::sync::OnceCell<sqlx::PgPool>,
     /// AMQP connection pool. Set once at startup via `init_queue()`.
-    amqp_pool: tokio::sync::OnceCell<deadpool_lapin::Pool>,
+    amqp_pool: tokio::sync::OnceCell<super::amqp_pool::Pool>,
     /// Object storage client. Set once at startup via `init_storage()`.
     object_store: tokio::sync::OnceCell<Arc<dyn ObjectStore + Send + Sync>>,
     /// SMTP transport. Set once at startup via `init_smtp()`.
@@ -243,16 +243,14 @@ impl WasmRuntime {
 
     /// Initialise the AMQP connection pool for `latchgate:io/queue`.
     ///
-    /// Uses deadpool-lapin so connections are reused across executions.
-    /// Pool size defaults to 4 (matching max_concurrent_executions).
+    /// Uses deadpool with a direct lapin Manager so connections are reused
+    /// across executions. Pool size defaults to 4 (matching max_concurrent_executions).
     /// Called once at startup when `amqp_url` is configured.
     pub async fn init_queue(&self, amqp_url: &str) -> Result<(), ProviderError> {
-        let cfg = deadpool_lapin::Config {
-            url: Some(amqp_url.to_string()),
-            ..Default::default()
-        };
-        let pool = cfg
-            .create_pool(Some(deadpool_lapin::Runtime::Tokio1))
+        let manager = super::amqp_pool::Manager::new(amqp_url);
+        let pool = super::amqp_pool::Pool::builder(manager)
+            .runtime(deadpool::Runtime::Tokio1)
+            .build()
             .map_err(|e| ProviderError::ExecutionFailed {
                 reason: format!("AMQP pool config failed: {e}"),
             })?;

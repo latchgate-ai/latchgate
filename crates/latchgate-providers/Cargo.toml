@@ -31,7 +31,7 @@ libc           = { workspace = true }
 lettre         = { workspace = true }
 sqlx           = { workspace = true }
 lapin          = { workspace = true }
-deadpool-lapin = { workspace = true }
+deadpool       = { workspace = true }
 object_store   = { workspace = true }
 
 

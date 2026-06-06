@@ -14,6 +14,7 @@
 //! Pipeline hands a `RunTask` to `execute()`; the WASM sandbox calls
 //! back into `HostState` for validated I/O.
 
+pub(crate) mod amqp_pool;
 mod host_database;
 mod host_fs;
 mod host_http;
@@ -75,7 +76,7 @@ pub(crate) struct HostResources {
     /// PostgreSQL connection pool.
     pub(crate) db_pool: Option<sqlx::PgPool>,
     /// AMQP connection pool.
-    pub(crate) amqp_pool: Option<deadpool_lapin::Pool>,
+    pub(crate) amqp_pool: Option<amqp_pool::Pool>,
     /// Object storage client.
     pub(crate) object_store: Option<Arc<dyn object_store::ObjectStore + Send + Sync>>,
     /// Pre-built SMTP transport.
