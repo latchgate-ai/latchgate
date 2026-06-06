@@ -63,8 +63,8 @@ echo ""
 
 ALPINE_DIGEST=$(get_digest "alpine:3.20")
 ALPINE_SQUID_DIGEST=$(get_digest "alpine:3.23")
-RUST_DIGEST=$(get_digest "rust:1.88-alpine")
-RUST_SLIM_DIGEST=$(get_digest "rust:1.88-slim")
+RUST_DIGEST=$(get_digest "rust:1.93-alpine")
+RUST_SLIM_DIGEST=$(get_digest "rust:1.93-slim")
 REDIS_DIGEST=$(get_digest "redis:7-alpine")
 OPA_DIGEST=$(get_digest "openpolicyagent/opa:1.16.1")
 PROM_DIGEST=$(get_digest "prom/prometheus:v2.54.1")
@@ -73,8 +73,8 @@ echo ""
 echo "  Resolved digests:"
 echo "    alpine:3.20                  ${ALPINE_DIGEST:0:19}..."
 echo "    alpine:3.23 (squid)          ${ALPINE_SQUID_DIGEST:0:19}..."
-echo "    rust:1.88-alpine             ${RUST_DIGEST:0:19}..."
-echo "    rust:1.88-slim               ${RUST_SLIM_DIGEST:0:19}..."
+echo "    rust:1.93-alpine             ${RUST_DIGEST:0:19}..."
+echo "    rust:1.93-slim               ${RUST_SLIM_DIGEST:0:19}..."
 echo "    redis:7-alpine               ${REDIS_DIGEST:0:19}..."
 echo "    openpolicyagent/opa:1.16.1   ${OPA_DIGEST:0:19}..."
 echo "    prom/prometheus:v2.54.1      ${PROM_DIGEST:0:19}..."
@@ -83,8 +83,8 @@ echo ""
 # ── Pin Dockerfile (builder stage + runtime-base stage) ─────────────────
 
 pin Dockerfile \
-    "rust:1.88-alpine\(@sha256:[a-f0-9]*\)\?" \
-    "rust:1.88-alpine" "$RUST_DIGEST"
+    "rust:1.93-alpine\(@sha256:[a-f0-9]*\)\?" \
+    "rust:1.93-alpine" "$RUST_DIGEST"
 
 sed -i "s|FROM alpine:3\.20\(@sha256:[a-f0-9]*\)\?|FROM alpine:3.20@${ALPINE_DIGEST}|g" Dockerfile
 ok "alpine:3.20 -> ${ALPINE_DIGEST:0:19}... (Dockerfile)"
@@ -110,15 +110,15 @@ ok "prometheus:v2.54.1 -> ${PROM_DIGEST:0:19}... (docker-compose.yml)"
 
 # ── Pin Makefile (REHASH_IMAGE for containerised provider builds) ───────
 
-sed -i "s|REHASH_IMAGE\s*:=\s*rust:1\.88-slim\(@sha256:[a-f0-9]*\)\?|REHASH_IMAGE      := rust:1.88-slim@${RUST_SLIM_DIGEST}|g" \
+sed -i "s|REHASH_IMAGE\s*:=\s*rust:1\.93-slim\(@sha256:[a-f0-9]*\)\?|REHASH_IMAGE      := rust:1.93-slim@${RUST_SLIM_DIGEST}|g" \
     Makefile
-ok "rust:1.88-slim -> ${RUST_SLIM_DIGEST:0:19}... (Makefile)"
+ok "rust:1.93-slim -> ${RUST_SLIM_DIGEST:0:19}... (Makefile)"
 
 # ── Pin release.yml (PROVIDER_BUILD_IMAGE for CI provider builds) ───────
 
-sed -i "s|PROVIDER_BUILD_IMAGE:.*\"rust:1\.88-slim\(@sha256:[a-f0-9]*\)\?\"|PROVIDER_BUILD_IMAGE: \"rust:1.88-slim@${RUST_SLIM_DIGEST}\"|g" \
+sed -i "s|PROVIDER_BUILD_IMAGE:.*\"rust:1\.93-slim\(@sha256:[a-f0-9]*\)\?\"|PROVIDER_BUILD_IMAGE: \"rust:1.93-slim@${RUST_SLIM_DIGEST}\"|g" \
     .github/workflows/release.yml
-ok "rust:1.88-slim -> ${RUST_SLIM_DIGEST:0:19}... (.github/workflows/release.yml)"
+ok "rust:1.93-slim -> ${RUST_SLIM_DIGEST:0:19}... (.github/workflows/release.yml)"
 
 echo ""
 echo "  Done. All base images pinned to immutable digests."

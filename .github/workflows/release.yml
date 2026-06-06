@@ -14,11 +14,11 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   GHCR_IMAGE: ghcr.io/latchgate-ai/latchgate
-  RUST_TOOLCHAIN: "1.88"
+  RUST_TOOLCHAIN: "1.93"
   # Digest-pinned image for reproducible WASM provider builds.
   # Updated by: make pin-digests (resolves via docker buildx imagetools).
   # Ongoing:    Dependabot opens PRs when upstream publishes new digests.
-  PROVIDER_BUILD_IMAGE: "rust:1.88-slim@sha256:38bc5a86d998772d4aec2348656ed21438d20fcdce2795b56ca434cf21430d89"
+  PROVIDER_BUILD_IMAGE: "rust:1.93-slim@sha256:c0a38f5662afdb298898da1d70b909af4bda4e0acff2dc52aea6360a9b9c6956"
 
 jobs:
   # ── 1. Build arch-independent WASM providers + verify digests ──────────────

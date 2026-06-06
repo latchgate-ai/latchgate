@@ -218,7 +218,7 @@ PROVIDER_WASM_DIR := target/providers
 # Digest-pinned image for reproducible WASM provider builds.
 # Updated by: make pin-digests (resolves via docker buildx imagetools).
 # Ongoing:    Dependabot opens PRs when upstream publishes new digests.
-REHASH_IMAGE      := rust:1.88-slim@sha256:38bc5a86d998772d4aec2348656ed21438d20fcdce2795b56ca434cf21430d89
+REHASH_IMAGE      := rust:1.93-slim@sha256:c0a38f5662afdb298898da1d70b909af4bda4e0acff2dc52aea6360a9b9c6956
 
 # Canonical container build, shared by `providers` and `providers-rehash`.
 define CANONICAL_PROVIDER_BUILD
