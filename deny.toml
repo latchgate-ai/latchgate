@@ -105,7 +105,6 @@ skip = [
 
     # windows-sys / windows-targets version splits (transitive, cannot be unified)
     #
-    #   0.45  <- jni => rustls-platform-verifier => reqwest => jsonschema
     #   0.48  <- sqlx => sqlx-postgres => etcetera => windows-sys 0.48
     #   0.52  <- ring => jsonwebtoken => windows-sys 0.52
     #   0.59  <- cap-*/system-interface => wasmtime-wasi
@@ -113,41 +112,31 @@ skip = [
     #   0.61  <- mio => tokio / clap / tracing-subscriber => windows-sys 0.61
     #
     # windows-targets / windows_* arch crates track windows-sys versions:
-    #   0.42  <- windows-targets 0.42 (jni/windows-sys 0.45 chain)
     #   0.48  <- windows-targets 0.48 (sqlx chain)
     #   0.52  <- windows-targets 0.52 (ring/jsonwebtoken chain)
     #   0.53  <- windows-targets 0.53 (wasmtime => windows-sys 0.60 chain)
-    { name = "windows-sys", version = "0.45" },
     { name = "windows-sys", version = "0.48" },
     { name = "windows-sys", version = "0.52" },
     { name = "windows-sys", version = "0.59" },
     { name = "windows-sys", version = "0.60" },
-    { name = "windows-targets", version = "0.42" },
     { name = "windows-targets", version = "0.48" },
     { name = "windows-targets", version = "0.52" },
     { name = "windows-targets", version = "0.53" },
 
     # windows_* arch crates — skip each minor series present in the lock file
-    { name = "windows_aarch64_gnullvm", version = "0.42" },
     { name = "windows_aarch64_gnullvm", version = "0.48" },
     { name = "windows_aarch64_gnullvm", version = "0.52" },
-    { name = "windows_aarch64_msvc",    version = "0.42" },
     { name = "windows_aarch64_msvc",    version = "0.48" },
     { name = "windows_aarch64_msvc",    version = "0.52" },
-    { name = "windows_i686_gnu",        version = "0.42" },
     { name = "windows_i686_gnu",        version = "0.48" },
     { name = "windows_i686_gnu",        version = "0.52" },
     { name = "windows_i686_gnullvm",    version = "0.52" },
-    { name = "windows_i686_msvc",       version = "0.42" },
     { name = "windows_i686_msvc",       version = "0.48" },
     { name = "windows_i686_msvc",       version = "0.52" },
-    { name = "windows_x86_64_gnu",      version = "0.42" },
     { name = "windows_x86_64_gnu",      version = "0.48" },
     { name = "windows_x86_64_gnu",      version = "0.52" },
-    { name = "windows_x86_64_gnullvm",  version = "0.42" },
     { name = "windows_x86_64_gnullvm",  version = "0.48" },
     { name = "windows_x86_64_gnullvm",  version = "0.52" },
-    { name = "windows_x86_64_msvc",     version = "0.42" },
     { name = "windows_x86_64_msvc",     version = "0.48" },
     { name = "windows_x86_64_msvc",     version = "0.52" },
 
@@ -179,11 +168,10 @@ skip = [
     # lettre => nom 8 vs lapin => amq-protocol => nom 7
     { name = "nom", version = "7" },
 
-    # object_store 0.13 / lapin => p12-keystore pull rand 0.9 transitively;
+    # object_store 0.13 / lapin => p12-keystore pull rand 0.10 transitively;
     # latchgate pins rand 0.8 (rand_core 0.6 compat with ed25519-dalek/p256)
-    { name = "rand",       version = "0.9" },
-    { name = "rand_chacha", version = "0.9" },
-    { name = "rand_core",  version = "0.9" },
+    { name = "rand",       version = "0.10" },
+    { name = "rand_core",  version = "0.10" },
 
     # sqlx => webpki-roots 0.26 vs lettre => webpki-roots 1.0
     { name = "webpki-roots", version = "0.26" },
