@@ -12,7 +12,17 @@
 #     (b) remove suppression because the upstream fix has landed.
 #
 # Owner: platform-security. Review cadence: quarterly or on upstream release.
-ignore = []
+ignore = [
+    # review_before: 2026-09-01
+    # Blocker: rustls-pemfile (archived Aug 2025) is still pulled by two chains:
+    #   (1) latchgate-api => rustls-pemfile (direct dep for PEM parsing in mTLS setup)
+    #   (2) lapin => amq-protocol-tcp => tcp-stream => rustls-connector => rustls-pemfile
+    # Migration: replace direct usage with rustls-pki-types PemObject trait;
+    # upstream tcp-stream must drop rustls-connector.
+    # Risk: rustls-pemfile 2.x is a thin wrapper over rustls-pki-types —
+    # no behavioral divergence; no known active exploit; TLS setup path only.
+    { id = "RUSTSEC-2025-0134", reason = "transitive via latchgate-api (direct) and lapin=>tcp-stream=>rustls-connector; archived crate; no known exploit; TLS setup path only" },
+]
 
 [licenses]
 allow = [
@@ -93,7 +103,6 @@ skip = [
     #
     #   0.48  <- sqlx => sqlx-postgres => etcetera => windows-sys 0.48
     #   0.52  <- ring => jsonwebtoken => windows-sys 0.52
-    #   0.59  <- cap-*/system-interface => wasmtime-wasi
     #   0.61  <- mio => tokio / clap / tracing-subscriber => windows-sys 0.61
     #
     # windows-targets / windows_* arch crates track windows-sys versions:
@@ -101,7 +110,6 @@ skip = [
     #   0.52  <- windows-targets 0.52 (ring/jsonwebtoken chain)
     { name = "windows-sys", version = "0.48" },
     { name = "windows-sys", version = "0.52" },
-    { name = "windows-sys", version = "0.59" },
     { name = "windows-targets", version = "0.48" },
     { name = "windows-targets", version = "0.52" },
 
@@ -132,7 +140,12 @@ skip = [
     # directories => redox_users 0.4 vs newer chain
     { name = "redox_users",    version = "0.4" },
 
-    # object_store 0.13 / regorus / wasmtime 45 (via cap-rand) pull rand 0.10 transitively; latchgate pins
+    # lapin => amq-protocol-tcp => tcp-stream => p12-keystore => x509-parser =>
+    # asn1-rs / der-parser => nom 7; lettre => nom 8
+    { name = "nom", version = "7" },
+
+    # object_store 0.13 / regorus / wasmtime 45 (via cap-rand) /
+    # lapin => tcp-stream => p12-keystore pull rand 0.10 transitively; latchgate pins
     # rand 0.8 (rand_core 0.6 compat with ed25519-dalek 2.x / p256 0.13)
     { name = "rand",       version = "0.10" },
     { name = "rand_core",  version = "0.10" },
