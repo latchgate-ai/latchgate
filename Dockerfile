@@ -2,7 +2,7 @@
 #
 # ── Stages ────────────────────────────────────────────────────────────────────
 #
-#   builder        Rust 1.88 Alpine. Produces static musl binary, WASM
+#   builder        Rust 1.93 Alpine. Produces static musl binary, WASM
 #                  provider modules, and verifies manifest digests.
 #   runtime-base   Alpine 3.20. Shared runtime environment (uid/gid 10001,
 #                  ca-certificates, healthcheck, entrypoint, labels).
@@ -16,7 +16,7 @@
 
 # ── Builder ──────────────────────────────────────────────────────────────────
 
-FROM rust:1.88-alpine@sha256:9dfaae478ecd298b6b5a039e1f2cc4fc040fc818a2de9aa78fa714dea036574d AS builder
+FROM rust:1.93-alpine AS builder
 
 # TARGETARCH is set automatically by BuildKit (amd64, arm64).
 ARG TARGETARCH
