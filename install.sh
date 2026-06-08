@@ -172,7 +172,7 @@ verify_attestation() {
 # ---------------------------------------------------------------------------
 
 # Embedded public key — must match keys/release.minisign.pub in the repo.
-LATCHGATE_MINISIGN_PUBKEY="RWT2XA0DSMOdQ5CpkfZZQWiME/aF9ZDO7f1CqljsfGdR23e9rJFwI3/9"
+LATCHGATE_MINISIGN_PUBKEY="RWSH3qH2JE7pX4jsdD0ACXmT5laClRpAy5v6u2heBaXvTynRDzIUYvHx"
 
 verify_signature() {
     local file="$1" sig_url="$2"
