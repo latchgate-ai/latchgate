@@ -453,6 +453,7 @@ async fn dispatch_command(args: &cli::Cli, config: &Config, pr: &cli::output::Pr
             trace_id,
             session_id,
             event_type,
+            format,
         } => {
             let params = cli::client::AuditParams {
                 limit: Some(*limit),
@@ -466,7 +467,7 @@ async fn dispatch_command(args: &cli::Cli, config: &Config, pr: &cli::output::Pr
                 event_type: event_type.clone(),
             };
             match resolve_operator_auth(args, config, pr) {
-                Ok(auth) => cli::cmd::audit::run(config, &auth, params, pr).await,
+                Ok(auth) => cli::cmd::audit::run(config, &auth, params, pr, format).await,
                 Err(code) => code,
             }
         }
