@@ -5,6 +5,7 @@
 //!   2. Policy evaluation (embedded Rego via regorus)
 //!   3. WASM module instantiation (per-call cost for short tasks)
 //!   4. Lease token issuance (P-256 JWT signing)
+//!   5. JSON Schema request validation (pre-compiled validator)
 //!
 //! Run: `cargo bench --package latchgate-stress`
 //!
@@ -181,6 +182,36 @@ fn bench_lease_issuance(c: &mut Criterion) {
 }
 
 // ---------------------------------------------------------------------------
+// 5. JSON Schema request validation
+// ---------------------------------------------------------------------------
+
+fn bench_schema_validation(c: &mut Criterion) {
+    use latchgate_registry::schema::{compile_schema, validate_request, ValidationLimits};
+
+    let schema = serde_json::json!({
+        "type": "object",
+        "properties": {
+            "url": { "type": "string", "format": "uri" },
+            "method": { "type": "string", "enum": ["GET", "POST", "PUT", "DELETE"] },
+            "headers": { "type": "object" }
+        },
+        "required": ["url", "method"]
+    });
+    let validator = compile_schema(&schema).unwrap();
+    let limits = ValidationLimits::default();
+
+    let payload = serde_json::json!({
+        "url": "https://api.example.com/data",
+        "method": "GET",
+        "headers": { "Authorization": "Bearer tok_123" }
+    });
+
+    c.bench_function("schema_validate_request", |b| {
+        b.iter(|| black_box(validate_request(&validator, black_box(&payload), &limits)))
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -198,5 +229,6 @@ criterion_group!(
     bench_policy_eval,
     bench_wasm_instantiation,
     bench_lease_issuance,
+    bench_schema_validation,
 );
 criterion_main!(benches);
