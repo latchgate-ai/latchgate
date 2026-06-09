@@ -3,9 +3,11 @@
 Execution security kernel for AI agents.
 
 [![CI](https://github.com/latchgate-ai/latchgate/actions/workflows/ci.yml/badge.svg)](https://github.com/latchgate-ai/latchgate/actions/workflows/ci.yml)
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/latchgate-ai/latchgate)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/latchgate-ai/latchgate/badge)](https://scorecard.dev/viewer/?uri=github.com/latchgate-ai/latchgate)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)
 ![Rust](https://img.shields.io/badge/rust-1.88%2B-orange?style=flat-square)
+[![Protected by CVE Lite CLI](https://img.shields.io/badge/Protected_by-CVE_Lite_CLI-brightgreen)](https://github.com/OWASP/cve-lite-cli)
 
 [Website](https://latchgate.ai) · [Docs](https://docs.latchgate.ai) · [Security model](https://docs.latchgate.ai/security-model/) · [Report a vulnerability](SECURITY.md)
 
