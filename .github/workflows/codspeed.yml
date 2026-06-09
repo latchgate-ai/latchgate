@@ -48,6 +48,9 @@ jobs:
       - name: Build providers
         run: make providers
 
+      - name: Fix target permissions
+        run: sudo chown -R $(id -u):$(id -g) target/
+
       - name: Build benchmark target
         run: cargo codspeed build -p latchgate-stress
 
