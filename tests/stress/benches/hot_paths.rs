@@ -7,6 +7,7 @@
 //!   4. Lease token issuance (P-256 JWT signing)
 //!   5. JSON Schema request validation (pre-compiled validator)
 //!   6. File path glob matching (deny-overrides-allow)
+//!   7. Ed25519 grant sign + verify (kid-based lookup)
 //!
 //! Run: `cargo bench --package latchgate-stress`
 //!
@@ -248,6 +249,33 @@ fn bench_path_evaluation(c: &mut Criterion) {
 }
 
 // ---------------------------------------------------------------------------
+// 7. Ed25519 grant sign + verify (kid-based lookup)
+// ---------------------------------------------------------------------------
+
+fn bench_grant_sign_verify(c: &mut Criterion) {
+    // Imported from crate root — grant_signer module is pub(crate).
+    use latchgate_crypto::{GrantSigner, GrantVerifyingKeyStore};
+
+    let signer = GrantSigner::generate();
+    let mut store = GrantVerifyingKeyStore::empty();
+    store.register(&signer);
+
+    let message = "action=http_get&hash=deadbeef&ts=1700000000";
+
+    // kid is derived from the verifying key and is stable for the lifetime of
+    // the signer — in production it is resolved once, not per-request.
+    let kid = signer.kid();
+
+    c.bench_function("grant_ed25519_sign_verify", |b| {
+        b.iter(|| {
+            let sig = signer.sign(black_box(message));
+            let result = store.verify_by_kid(&kid, message, &sig);
+            black_box(result)
+        })
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -267,5 +295,6 @@ criterion_group!(
     bench_lease_issuance,
     bench_schema_validation,
     bench_path_evaluation,
+    bench_grant_sign_verify,
 );
 criterion_main!(benches);
