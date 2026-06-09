@@ -12,8 +12,8 @@
 //!
 //! Run: `cargo bench --package latchgate-stress`
 //!
-//! CI integration: `benchmark-action/github-action-benchmark` with a
-//! 150% regression threshold (comments on PR, no auto-fail). Nightly only.
+//! CI integration: CodSpeed (simulated CPU) on every push to main and
+//! every pull request. Regression detection is automatic.
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
