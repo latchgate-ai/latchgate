@@ -793,6 +793,87 @@ mod tests {
         );
     }
 
+    /// SECURITY: a stolen Lease JWT (which reveals `cnf.jkt`) must not
+    /// grant access without the corresponding DPoP private key. This test
+    /// verifies the cache-hit path: the legitimate key is cached, then an
+    /// attacker presents a proof signed with a different key. The cached
+    /// key must cause signature verification to fail, and the cache entry
+    /// must survive so the legitimate client is not disrupted.
+    #[test]
+    fn cache_hit_wrong_signature_is_denied_and_cache_survives() {
+        let (sk_legit, pk_legit) = generate_dpop_keypair().unwrap();
+        let cnf_jkt = compute_jwk_thumbprint(&pk_legit.x, &pk_legit.y).unwrap();
+        let lease = fake_lease();
+        let cache = test_cache();
+        let ath = compute_ath(&lease);
+
+        // Legitimate client populates the cache.
+        let legit_proof =
+            sign_dpop_proof(&sk_legit, TEST_HTM, TEST_HTU, &ath, "jti-legit").unwrap();
+        verify_dpop_proof(&legit_proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache).unwrap();
+        assert_eq!(cache.len(), 1);
+
+        // Attacker signs a proof with a different key but presents the
+        // same cnf_jkt (stolen from the Lease). The cache-hit path must
+        // use the cached (legitimate) key and reject the signature.
+        let (sk_attacker, _) = generate_dpop_keypair().unwrap();
+        let attacker_proof =
+            sign_dpop_proof(&sk_attacker, TEST_HTM, TEST_HTU, &ath, "jti-attack").unwrap();
+        assert!(matches!(
+            verify_dpop_proof(
+                &attacker_proof,
+                TEST_HTM,
+                TEST_HTU,
+                &lease,
+                &cnf_jkt,
+                &cache
+            ),
+            Err(DPoPVerifyError::InvalidProof {
+                kind: DpopRejectKind::BadSig,
+                ..
+            })
+        ));
+
+        // Cache must survive the failed attempt — the legitimate client
+        // must not be disrupted.
+        assert_eq!(cache.len(), 1, "failed verify must not evict cache entry");
+
+        // Legitimate client can still authenticate.
+        let legit_proof2 =
+            sign_dpop_proof(&sk_legit, TEST_HTM, TEST_HTU, &ath, "jti-legit-2").unwrap();
+        verify_dpop_proof(&legit_proof2, TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache).unwrap();
+    }
+
+    /// SECURITY: on cache miss, if `extract_bound_key` succeeds (valid
+    /// header, thumbprint matches `cnf_jkt`) but signature verification
+    /// fails, the key must NOT be inserted into the cache. This prevents
+    /// a DoS vector where an attacker floods proofs with valid headers
+    /// but invalid signatures to pollute the cache.
+    #[test]
+    fn failed_sig_on_cache_miss_does_not_populate_cache() {
+        let (sk, pk) = generate_dpop_keypair().unwrap();
+        let cnf_jkt = compute_jwk_thumbprint(&pk.x, &pk.y).unwrap();
+        let lease = fake_lease();
+        let cache = test_cache();
+        let ath = compute_ath(&lease);
+
+        // Sign a valid proof, then corrupt the payload segment so the
+        // header (and thus extract_bound_key) succeeds but signature
+        // verification fails.
+        let proof = sign_dpop_proof(&sk, TEST_HTM, TEST_HTU, &ath, "jti-sigfail").unwrap();
+        let mut parts: Vec<String> = proof.splitn(3, '.').map(String::from).collect();
+        parts[1].push('X'); // corrupt payload → sig mismatch
+        let tampered = parts.join(".");
+
+        assert!(
+            verify_dpop_proof(&tampered, TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache).is_err()
+        );
+        assert!(
+            cache.is_empty(),
+            "failed signature verification must not populate the cache"
+        );
+    }
+
     /// SECURITY regression: attacker-controlled header and payload fields
     /// (`typ`, `alg`, `kty`, `crv`, `htm`, `htu`) end up inside
     /// `DPoPVerifyError::reason`, which propagates to structured logs, audit
