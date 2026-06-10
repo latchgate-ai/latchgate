@@ -9,7 +9,7 @@ Execution security kernel for AI agents.
 ![Rust](https://img.shields.io/badge/rust-1.88%2B-orange?style=flat-square)
 [![Protected by CVE Lite CLI](https://img.shields.io/badge/Protected_by-CVE_Lite_CLI-brightgreen)](https://github.com/OWASP/cve-lite-cli)
 
-[Website](https://latchgate.ai) · [Docs](https://docs.latchgate.ai) · [Security model](https://docs.latchgate.ai/security-model/) · [Report a vulnerability](SECURITY.md)
+[Website](https://latchgate.ai) · [Docs](https://docs.latchgate.ai) · [Security model](https://docs.latchgate.ai/architecture/security-model/) · [Report a vulnerability](SECURITY.md)
 
 > [!IMPORTANT]
 > The security model is production-ready; the API and manifest format may have breaking changes until v1.0. Pin to a specific commit for production use.
