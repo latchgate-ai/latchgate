@@ -402,7 +402,6 @@ pub enum Command {
 
     /// List registered actions.
     ///
-    ///
     /// Queries the running gate for the current action registry. Use
     /// `--action` to show full manifest details for one action.
     Actions {
@@ -418,7 +417,8 @@ pub enum Command {
     ///
     /// Requires operator authentication.
     Audit {
-        #[arg(long, value_enum)]
+        /// Output format: table (default), json, jsonl, or csv.
+        #[arg(long, value_enum, conflicts_with = "json")]
         format: Option<AuditOutputFormat>,
 
         /// Maximum number of events to return.

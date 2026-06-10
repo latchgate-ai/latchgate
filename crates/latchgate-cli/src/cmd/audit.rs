@@ -11,7 +11,7 @@ use crate::output::{print_json, Printer};
 use crate::AuditOutputFormat;
 
 fn csv_escape(s: &str) -> String {
-    if s.contains(',') || s.contains('"') || s.contains('\n') {
+    if s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r') {
         format!("\"{}\"", s.replace('"', "\"\""))
     } else {
         s.to_string()
@@ -19,6 +19,9 @@ fn csv_escape(s: &str) -> String {
 }
 
 fn jsonl_output(events: &[serde_json::Value]) -> String {
+    if events.is_empty() {
+        return String::new();
+    }
     let mut output = events
         .iter()
         .map(|e| serde_json::to_string(e).unwrap())
@@ -77,8 +80,7 @@ pub async fn run(
         }
 
         AuditOutputFormat::Jsonl => {
-            println!("{}", jsonl_output(&events));
-            return 0;
+            print!("{}", jsonl_output(&events));
         }
 
         AuditOutputFormat::Csv => {
@@ -270,17 +272,5 @@ mod tests {
         let output = jsonl_output(&events);
 
         assert!(!output.contains("\x1b["));
-    }
-
-    #[test]
-    fn format_takes_precedence_over_json() {
-        let format = Some(AuditOutputFormat::Csv);
-
-        let output_format = match &format {
-            Some(fmt) => fmt.clone(),
-            None => AuditOutputFormat::Json,
-        };
-
-        assert!(matches!(output_format, AuditOutputFormat::Csv));
     }
 }
