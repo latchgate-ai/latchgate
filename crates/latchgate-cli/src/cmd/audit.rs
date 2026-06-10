@@ -8,12 +8,41 @@ use crate::client::{AuditParams, GateClient};
 use crate::cmd::text::truncate;
 use crate::output::{print_json, Printer};
 
+use crate::AuditOutputFormat;
+
+fn csv_escape(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r') {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
+}
+
+fn jsonl_output(events: &[serde_json::Value]) -> String {
+    if events.is_empty() {
+        return String::new();
+    }
+    let mut output = events
+        .iter()
+        .map(|e| serde_json::to_string(e).unwrap())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    output.push('\n');
+    output
+}
+
+fn json_output(events: &[serde_json::Value]) -> serde_json::Value {
+    json!({ "events": events })
+}
+
 /// Run the `audit` command. Returns exit code.
 pub async fn run(
     config: &Config,
     auth: &crate::OperatorAuth,
     params: AuditParams,
     pr: &Printer,
+    format: &Option<AuditOutputFormat>,
 ) -> i32 {
     let client = match GateClient::from_config(config) {
         Ok(c) => c,
@@ -38,9 +67,52 @@ pub async fn run(
         }
     };
 
-    if pr.json {
-        print_json(&json!({ "events": events }));
-        return 0;
+    let output_format = match format {
+        Some(fmt) => fmt.clone(),
+        None if pr.json => AuditOutputFormat::Json,
+        None => AuditOutputFormat::Table,
+    };
+
+    match output_format {
+        AuditOutputFormat::Json => {
+            print_json(&json_output(&events));
+            return 0;
+        }
+
+        AuditOutputFormat::Jsonl => {
+            print!("{}", jsonl_output(&events));
+            return 0;
+        }
+
+        AuditOutputFormat::Csv => {
+            println!(
+        "trace_id,timestamp,event_type,action_id,principal,decision,reason,session_id,dev_mode"
+    );
+
+            for ev in &events {
+                println!(
+                    "{},{},{},{},{},{},{},{},{}",
+                    csv_escape(ev["trace_id"].as_str().unwrap_or("")),
+                    csv_escape(ev["timestamp"].as_str().unwrap_or("")),
+                    csv_escape(ev["event_type"].as_str().unwrap_or("")),
+                    csv_escape(ev["action_id"].as_str().unwrap_or("")),
+                    csv_escape(ev["principal"].as_str().unwrap_or("")),
+                    csv_escape(ev["decision"].as_str().unwrap_or("")),
+                    csv_escape(ev["reason"].as_str().unwrap_or("")),
+                    csv_escape(ev["session_id"].as_str().unwrap_or("")),
+                    csv_escape(
+                        &ev["dev_mode"]
+                            .as_bool()
+                            .map(|b| b.to_string())
+                            .unwrap_or_default(),
+                    ),
+                );
+            }
+
+            return 0;
+        }
+
+        AuditOutputFormat::Table => {}
     }
 
     pr.blank();
@@ -121,4 +193,85 @@ pub async fn run(
     );
     pr.blank();
     0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn csv_escape_plain_text() {
+        assert_eq!(csv_escape("hello"), "hello");
+    }
+
+    #[test]
+    fn csv_escape_quotes_commas_and_quotes() {
+        let input = r#"hello,"world""#;
+        let output = csv_escape(input);
+
+        assert_eq!(output, "\"hello,\"\"world\"\"\"");
+    }
+
+    #[test]
+    fn csv_escape_newline() {
+        let input = "hello\nworld";
+        let output = csv_escape(input);
+
+        assert_eq!(output, "\"hello\nworld\"");
+    }
+
+    #[test]
+    fn jsonl_lines_are_valid_json() {
+        let events = vec![
+            serde_json::json!({
+                "trace_id": "t1",
+                "decision": "allow"
+            }),
+            serde_json::json!({
+                "trace_id": "t2",
+                "decision": "deny"
+            }),
+        ];
+
+        let output = jsonl_output(&events);
+
+        for line in output.lines() {
+            serde_json::from_str::<serde_json::Value>(line).unwrap();
+        }
+    }
+
+    #[test]
+    fn json_and_jsonl_round_trip_match() {
+        let events = vec![
+            serde_json::json!({
+                "trace_id": "t1",
+                "decision": "allow"
+            }),
+            serde_json::json!({
+                "trace_id": "t2",
+                "decision": "deny"
+            }),
+        ];
+
+        let json = json_output(&events);
+
+        let parsed: Vec<serde_json::Value> = jsonl_output(&events)
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+
+        assert_eq!(json["events"], serde_json::json!(parsed));
+    }
+
+    #[test]
+    fn jsonl_contains_no_ansi_escape_codes() {
+        let events = vec![serde_json::json!({
+            "trace_id": "t1",
+            "decision": "allow"
+        })];
+
+        let output = jsonl_output(&events);
+
+        assert!(!output.contains("\x1b["));
+    }
 }

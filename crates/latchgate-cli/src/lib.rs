@@ -18,6 +18,14 @@ use clap::{Parser, Subcommand};
 
 pub use client::OperatorAuth;
 
+#[derive(Debug, Clone, clap::ValueEnum)]
+pub enum AuditOutputFormat {
+    Table,
+    Json,
+    Jsonl,
+    Csv,
+}
+
 /// Version string for branded headers (e.g. `v0.1.0 (a1b2c3d4 2025-06-01)`).
 pub const VERSION: &str = concat!(
     "v",
@@ -409,6 +417,10 @@ pub enum Command {
     ///
     /// Requires operator authentication.
     Audit {
+        /// Output format: table (default), json, jsonl, or csv.
+        #[arg(long, value_enum, conflicts_with = "json")]
+        format: Option<AuditOutputFormat>,
+
         /// Maximum number of events to return.
         #[arg(long, short, default_value = "20", value_name = "N")]
         limit: usize,
