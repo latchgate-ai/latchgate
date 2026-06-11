@@ -91,6 +91,7 @@ fn bench_dpop_verify_only(c: &mut Criterion) {
     use latchgate_auth::dpop::{
         compute_ath, compute_jwk_thumbprint, generate_dpop_keypair, sign_dpop_proof,
     };
+    use latchgate_auth::DPoPKeyCache;
 
     let (sk, pk) = generate_dpop_keypair().unwrap();
     let jkt = compute_jwk_thumbprint(&pk.x, &pk.y).unwrap();
