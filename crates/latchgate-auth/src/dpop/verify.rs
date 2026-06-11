@@ -13,7 +13,7 @@
 
 use base64ct::{Base64UrlUnpadded, Encoding};
 use latchgate_core::constant_time_eq;
-use p256::ecdsa::{signature::Verifier, Signature, VerifyingKey as P256VerifyingKey};
+use ring::signature::{UnparsedPublicKey, ECDSA_P256_SHA256_FIXED};
 
 use super::{compute_ath, compute_jwk_thumbprint, normalize_htu, unix_now, DPoPClaims};
 
@@ -244,8 +244,11 @@ pub fn verify_dpop_proof(
         DPoPVerifyError::invalid_proof(DpopRejectKind::BadHeader, "invalid base64url in jwk.y")
     })?;
 
-    let vk = vk_from_xy(&x_bytes, &y_bytes)?;
-    verify_sig(&vk, header_b64, payload_b64, sig_b64)?;
+    let sec1_public_key = build_sec1_uncompressed(&x_bytes, &y_bytes);
+
+    let sig_bytes = b64url_decode(sig_b64, "signature", DpopRejectKind::BadSig)?;
+
+    verify_sig(&sec1_public_key, header_b64, payload_b64, &sig_bytes)?;
 
     // SECURITY: this is the sender-constraint at the heart of DPoP. A proof
     // signed by a different key (even a valid one) does not satisfy the
@@ -336,39 +339,27 @@ fn b64url_decode(s: &str, label: &str, kind: DpopRejectKind) -> Result<Vec<u8>, 
 /// Reconstruct a P-256 verifying key from raw x/y coordinate bytes.
 ///
 /// Uses SEC1 uncompressed point encoding: 0x04 || x (32 bytes) || y (32 bytes).
-fn vk_from_xy(x: &[u8], y: &[u8]) -> Result<P256VerifyingKey, DPoPVerifyError> {
+fn build_sec1_uncompressed(x: &[u8], y: &[u8]) -> Vec<u8> {
     let mut sec1 = Vec::with_capacity(1 + x.len() + y.len());
-    sec1.push(0x04); // uncompressed point prefix
+    sec1.push(0x04);
     sec1.extend_from_slice(x);
     sec1.extend_from_slice(y);
-
-    P256VerifyingKey::from_sec1_bytes(&sec1).map_err(|_| {
-        DPoPVerifyError::invalid_proof(
-            DpopRejectKind::BadKey,
-            "invalid EC public key in jwk (bad x/y coordinates)",
-        )
-    })
+    sec1
 }
 
 fn verify_sig(
-    vk: &P256VerifyingKey,
+    sec1_public_key: &[u8],
     header_b64: &str,
     payload_b64: &str,
-    sig_b64: &str,
+    sig_bytes: &[u8],
 ) -> Result<(), DPoPVerifyError> {
     let signing_input = format!("{header_b64}.{payload_b64}");
-
-    let sig_bytes = b64url_decode(sig_b64, "signature", DpopRejectKind::BadSig)?;
-    let sig = Signature::try_from(sig_bytes.as_slice()).map_err(|_| {
-        DPoPVerifyError::invalid_proof(
-            DpopRejectKind::BadSig,
-            "signature is not a valid ES256 (P-256) signature",
-        )
-    })?;
-
-    vk.verify(signing_input.as_bytes(), &sig).map_err(|_| {
-        DPoPVerifyError::invalid_proof(DpopRejectKind::BadSig, "signature verification failed")
-    })
+    let public_key = UnparsedPublicKey::new(&ECDSA_P256_SHA256_FIXED, sec1_public_key);
+    public_key
+        .verify(signing_input.as_bytes(), sig_bytes)
+        .map_err(|_| {
+            DPoPVerifyError::invalid_proof(DpopRejectKind::BadSig, "signature verification failed")
+        })
 }
 
 /// Validate that `iat` falls within `[now - max_age, now + skew]`.
@@ -599,6 +590,51 @@ mod tests {
             verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt_a),
             Err(DPoPVerifyError::InvalidProof {
                 kind: DpopRejectKind::BadSig,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn invalid_ec_point_is_denied() {
+        let (sk, _pk) = generate_dpop_keypair().unwrap();
+
+        let lease = fake_lease();
+        let ath = compute_ath(&lease);
+
+        // Intentionally invalid coordinates: not a valid P-256 point.
+        let bad_x = Base64UrlUnpadded::encode_string(&[0u8; 32]);
+        let bad_y = Base64UrlUnpadded::encode_string(&[0u8; 32]);
+
+        let header = serde_json::json!({
+            "typ": "dpop+jwt",
+            "alg": "ES256",
+            "jwk": {
+                "kty": "EC",
+                "crv": "P-256",
+                "x": bad_x,
+                "y": bad_y
+            }
+        });
+
+        let payload = DPoPClaims {
+            jti: "jti-invalid-point".into(),
+            htm: "POST".into(),
+            htu: normalize_htu(TEST_HTU).unwrap(),
+            iat: unix_now().unwrap() as i64,
+            ath,
+        };
+
+        // Sign with a real key, but advertise an invalid public key.
+        let proof = sign_jwt_es256(&sk, &header, &payload).unwrap();
+
+        assert!(matches!(
+            verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, "dummy-thumbprint"),
+            Err(DPoPVerifyError::InvalidProof {
+                kind: DpopRejectKind::BadSig,
+                ..
+            }) | Err(DPoPVerifyError::InvalidProof {
+                kind: DpopRejectKind::BadKey,
                 ..
             })
         ));
