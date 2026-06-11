@@ -12,7 +12,7 @@ use arc_swap::ArcSwap;
 
 use crate::verification::VerifierRegistry;
 use latchgate_auth::issuer::Issuer;
-use latchgate_auth::ReplayCache;
+use latchgate_auth::{DPoPKeyCache, ReplayCache};
 use latchgate_config::Config;
 use latchgate_crypto::{GrantSigner, GrantVerifyingKeyStore, ReceiptSigner, VerifyingKeyStore};
 use latchgate_ledger::{LedgerStore, Metrics};
@@ -27,6 +27,9 @@ use crate::rate_limit::TokenBucketRateLimiter;
 pub struct AuthServices {
     pub issuer: Arc<Issuer>,
     pub replay_cache: Arc<ReplayCache>,
+    /// Bounded LRU cache of parsed P-256 verifying keys, keyed by `cnf.jkt`.
+    /// Eliminates redundant JWK parsing on repeat requests from the same agent.
+    pub dpop_key_cache: Arc<DPoPKeyCache>,
     /// Pluggable caller identity verification at lease issuance time.
     pub identity_provider: Arc<dyn latchgate_auth::IdentityProvider>,
     /// Pre-computed DPoP `htu` prefix: `"{public_base_url}/v1/actions/"`.
@@ -195,6 +198,7 @@ impl AppState {
             auth: AuthServices {
                 issuer: Arc::new(init.auth.issuer),
                 replay_cache: Arc::new(init.auth.replay_cache),
+                dpop_key_cache: Arc::new(DPoPKeyCache::new()),
                 identity_provider: Arc::from(init.auth.identity_provider),
                 htu_prefix,
             },

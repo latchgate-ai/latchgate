@@ -64,6 +64,7 @@ pub(crate) async fn step_authenticate(
             &htu,
             state.auth.issuer.jwks(),
             &state.auth.replay_cache,
+            &state.auth.dpop_key_cache,
         )
         .await;
         state
