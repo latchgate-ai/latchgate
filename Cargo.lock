@@ -2987,6 +2987,7 @@ dependencies = [
  "latchgate-config",
  "latchgate-core",
  "latchgate-crypto",
+ "lru",
  "p256",
  "rand 0.8.6",
  "redis",

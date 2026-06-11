@@ -25,6 +25,7 @@ use std::sync::Arc;
 use latchgate_config::OperatorCredential;
 use latchgate_core::constant_time_eq;
 
+use super::key_cache::DPoPKeyCache;
 use super::verify::{verify_dpop_proof, DPoPVerifyError, DpopRejectKind};
 use crate::ReplayCache;
 
@@ -112,6 +113,7 @@ pub async fn verify_operator_auth(
     expected_htu: &str,
     credentials: &HashMap<String, OperatorCredential>,
     replay_cache: &ReplayCache,
+    key_cache: &DPoPKeyCache,
 ) -> Result<OperatorAuthContext, OperatorAuthError> {
     let header = authorization.ok_or(OperatorAuthError::MissingAuthHeader)?;
 
@@ -128,6 +130,7 @@ pub async fn verify_operator_auth(
         expected_htu,
         credentials,
         replay_cache,
+        key_cache,
     )
     .await
 }
@@ -140,6 +143,7 @@ async fn verify_dpop_operator(
     expected_htu: &str,
     credentials: &HashMap<String, OperatorCredential>,
     replay_cache: &ReplayCache,
+    key_cache: &DPoPKeyCache,
 ) -> Result<OperatorAuthContext, OperatorAuthError> {
     let (operator_id, cred) = find_operator_by_token(token, credentials)?;
 
@@ -155,6 +159,7 @@ async fn verify_dpop_operator(
         expected_htu,
         token, // ath = SHA-256(token) — binds proof to this specific operator token
         expected_jkt,
+        key_cache,
     )
     .map_err(|e| match e {
         DPoPVerifyError::InvalidProof {
@@ -219,6 +224,7 @@ fn find_operator_by_token<'a>(
 
 #[cfg(test)]
 mod tests {
+    use super::super::key_cache::DPoPKeyCache;
     use super::*;
 
     // --- find_operator_by_token ---
@@ -354,6 +360,7 @@ mod tests {
     async fn missing_auth_header_is_rejected() {
         let creds = HashMap::new();
         let cache = ReplayCache::in_memory(std::time::Duration::from_secs(180));
+        let key_cache = DPoPKeyCache::new();
         let result = verify_operator_auth(
             None,
             None,
@@ -361,6 +368,7 @@ mod tests {
             "https://example.com/v1/approvals/x/approve",
             &creds,
             &cache,
+            &key_cache,
         )
         .await;
         assert!(matches!(result, Err(OperatorAuthError::MissingAuthHeader)));
@@ -370,6 +378,7 @@ mod tests {
     async fn invalid_scheme_is_rejected() {
         let creds = HashMap::new();
         let cache = ReplayCache::in_memory(std::time::Duration::from_secs(180));
+        let key_cache = DPoPKeyCache::new();
         let result = verify_operator_auth(
             Some("Basic dXNlcjpwYXNz"),
             None,
@@ -377,6 +386,7 @@ mod tests {
             "https://example.com/v1/approvals/x/approve",
             &creds,
             &cache,
+            &key_cache,
         )
         .await;
         assert!(matches!(result, Err(OperatorAuthError::InvalidScheme)));
@@ -386,6 +396,7 @@ mod tests {
     async fn bearer_scheme_is_rejected() {
         let creds = HashMap::new();
         let cache = ReplayCache::in_memory(std::time::Duration::from_secs(180));
+        let key_cache = DPoPKeyCache::new();
         let result = verify_operator_auth(
             Some("Bearer some-token"),
             None,
@@ -393,6 +404,7 @@ mod tests {
             "https://example.com/v1/approvals/x/approve",
             &creds,
             &cache,
+            &key_cache,
         )
         .await;
         assert!(matches!(result, Err(OperatorAuthError::InvalidScheme)));
@@ -409,6 +421,7 @@ mod tests {
             },
         );
         let cache = ReplayCache::in_memory(std::time::Duration::from_secs(180));
+        let key_cache = DPoPKeyCache::new();
         let result = verify_operator_auth(
             Some("DPoP token-alice"),
             None, // no DPoP header
@@ -416,6 +429,7 @@ mod tests {
             "https://example.com/v1/approvals/x/approve",
             &creds,
             &cache,
+            &key_cache,
         )
         .await;
         assert!(matches!(result, Err(OperatorAuthError::MissingDpopHeader)));
@@ -462,6 +476,7 @@ mod tests {
         let (creds, api_key, sk) = dpop_credential();
         let proof = operator_proof(&sk, &api_key);
         let cache = ReplayCache::in_memory(std::time::Duration::from_secs(180));
+        let key_cache = DPoPKeyCache::new();
 
         let ctx = verify_operator_auth(
             Some(&format!("DPoP {api_key}")),
@@ -470,6 +485,7 @@ mod tests {
             TEST_HTU,
             &creds,
             &cache,
+            &key_cache,
         )
         .await
         .unwrap();
@@ -487,6 +503,7 @@ mod tests {
         let (wrong_sk, _) = generate_dpop_keypair().unwrap();
         let proof = operator_proof(&wrong_sk, &api_key);
         let cache = ReplayCache::in_memory(std::time::Duration::from_secs(180));
+        let key_cache = DPoPKeyCache::new();
 
         let result = verify_operator_auth(
             Some(&format!("DPoP {api_key}")),
@@ -495,6 +512,7 @@ mod tests {
             TEST_HTU,
             &creds,
             &cache,
+            &key_cache,
         )
         .await;
 
@@ -513,6 +531,7 @@ mod tests {
         let (creds, api_key, sk) = dpop_credential();
         let proof = operator_proof(&sk, &api_key);
         let cache = ReplayCache::in_memory(std::time::Duration::from_secs(180));
+        let key_cache = DPoPKeyCache::new();
 
         // First use — accepted.
         let result1 = verify_operator_auth(
@@ -522,6 +541,7 @@ mod tests {
             TEST_HTU,
             &creds,
             &cache,
+            &key_cache,
         )
         .await;
         assert!(result1.is_ok(), "first use must succeed");
@@ -534,6 +554,7 @@ mod tests {
             TEST_HTU,
             &creds,
             &cache,
+            &key_cache,
         )
         .await;
         assert!(
@@ -548,6 +569,7 @@ mod tests {
         // Sign proof bound to a different token.
         let proof = operator_proof(&sk, "wrong-token-value");
         let cache = ReplayCache::in_memory(std::time::Duration::from_secs(180));
+        let key_cache = DPoPKeyCache::new();
 
         let result = verify_operator_auth(
             Some(&format!("DPoP {api_key}")),
@@ -556,6 +578,7 @@ mod tests {
             TEST_HTU,
             &creds,
             &cache,
+            &key_cache,
         )
         .await;
 
@@ -580,6 +603,7 @@ mod tests {
         )
         .unwrap();
         let cache = ReplayCache::in_memory(std::time::Duration::from_secs(180));
+        let key_cache = DPoPKeyCache::new();
 
         let result = verify_operator_auth(
             Some(&format!("DPoP {api_key}")),
@@ -588,6 +612,7 @@ mod tests {
             TEST_HTU,
             &creds,
             &cache,
+            &key_cache,
         )
         .await;
 
@@ -603,6 +628,7 @@ mod tests {
         let wrong_key = "completely-wrong-token";
         let proof = operator_proof(&sk, wrong_key);
         let cache = ReplayCache::in_memory(std::time::Duration::from_secs(180));
+        let key_cache = DPoPKeyCache::new();
 
         let result = verify_operator_auth(
             Some(&format!("DPoP {wrong_key}")),
@@ -611,6 +637,7 @@ mod tests {
             TEST_HTU,
             &creds,
             &cache,
+            &key_cache,
         )
         .await;
 

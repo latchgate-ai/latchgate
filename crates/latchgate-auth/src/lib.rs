@@ -35,6 +35,7 @@ pub(crate) mod replay;
 // These are the items other crates import most often.
 
 pub use auth::{authenticate, verify_lease, AuthContext, AuthError};
+pub use dpop::key_cache::DPoPKeyCache;
 pub use dpop::operator::{
     verify_operator_auth as verify_operator_dpop_auth, OperatorAuthContext, OperatorAuthError,
     OperatorAuthnMethod,
