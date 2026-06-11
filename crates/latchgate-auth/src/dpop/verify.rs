@@ -15,6 +15,7 @@ use base64ct::{Base64UrlUnpadded, Encoding};
 use latchgate_core::constant_time_eq;
 use ring::signature::{UnparsedPublicKey, ECDSA_P256_SHA256_FIXED};
 
+use super::key_cache::DPoPKeyCache;
 use super::{compute_ath, compute_jwk_thumbprint, normalize_htu, unix_now, DPoPClaims};
 
 /// Closed set of DPoP rejection categories used as Prometheus metric labels.
@@ -141,14 +142,24 @@ const IAT_CLOCK_SKEW_SECS: u64 = 5;
 
 /// Verify a DPoP proof against the current request and bound Lease JWT.
 ///
+/// `key_cache` accelerates repeat requests from the same agent: on cache
+/// hit, header parsing, JWK extraction, and thumbprint verification are
+/// skipped. The ECDSA signature is always verified (RFC 9449 §4.3).
+///
 /// Validation order (fail-closed at each step):
 ///
+/// **Cache miss (first proof from this key):**
 /// 1. Structure: three-part JWT, valid base64url segments.
-/// 2. `typ` == `"dpop+jwt"` — token-type separation.
-/// 3. `alg` == `"ES256"` — no algorithm negotiation.
-/// 4. `jwk` present; `kty=EC`, `crv=P-256`.
-/// 5. Signature valid over `header_b64.payload_b64` using the embedded JWK.
-/// 6. Key binding: `thumbprint(embedded jwk) == cnf_jkt` (sender constraint).
+/// 2. Header: `typ` == `"dpop+jwt"`, `alg` == `"ES256"`.
+/// 3. JWK: `kty=EC`, `crv=P-256`, valid x/y coordinates.
+/// 4. Key binding: `thumbprint(jwk) == cnf_jkt` (sender constraint).
+/// 5. Signature valid using the extracted key (then cached under `cnf_jkt`).
+///
+/// **Cache hit (repeat proof from the same key):**
+/// 1. Structure: three-part JWT, valid base64url segments.
+/// 2. Signature valid using the cached key.
+///
+/// **Both paths (always):**
 /// 7. Required payload claims present and well-typed.
 /// 8. `htm` == `expected_htm` (normalised to uppercase).
 /// 9. `htu` == `expected_htu` (RFC 9449 §4.2.2 normalisation).
@@ -165,6 +176,7 @@ pub fn verify_dpop_proof(
     expected_htu: &str,
     lease_jwt: &str,
     cnf_jkt: &str,
+    key_cache: &DPoPKeyCache,
 ) -> Result<DPoPClaims, DPoPVerifyError> {
     // 1. Split into header / payload / signature
     let parts: Vec<&str> = proof.splitn(3, '.').collect();
@@ -176,6 +188,103 @@ pub fn verify_dpop_proof(
     }
     let (header_b64, payload_b64, sig_b64) = (parts[0], parts[1], parts[2]);
 
+    // ── Resolve verifying key ─────────────────────────────────────────
+    //
+    // Cache hit:  use the previously-verified key directly. Header
+    //             parsing, JWK extraction, and thumbprint check are
+    //             skipped — the cnf.jkt → key binding was established
+    //             on initial insertion and is secured by SHA-256
+    //             preimage resistance.
+    //
+    // Cache miss: full header parse → JWK validation → EC point
+    //             construction → thumbprint binding check.
+    let (vk, cache_hit) = match key_cache.get(cnf_jkt) {
+        Some(cached_vk) => (cached_vk, true),
+        None => (extract_bound_key(header_b64, cnf_jkt)?, false),
+    };
+
+    // ── Verify ECDSA signature (mandatory per RFC 9449, every request) ──
+    verify_sig(&vk, header_b64, payload_b64, sig_b64)?;
+
+    // ── Cache on miss (after successful signature verification) ──────
+    //
+    // SECURITY: insertion only after proof-of-possession. The thumbprint
+    // binding alone would suffice (SHA-256 preimage resistance guarantees
+    // the cached key matches cnf_jkt), but verifying the signature first
+    // means we never cache a key that hasn't appeared in a valid proof.
+    if !cache_hit {
+        key_cache.insert(cnf_jkt.to_owned(), vk);
+    }
+
+    let payload_bytes = b64url_decode(payload_b64, "payload", DpopRejectKind::Malformed)?;
+    let payload: DPoPClaims = serde_json::from_slice(&payload_bytes).map_err(|e| {
+        DPoPVerifyError::invalid_proof(
+            DpopRejectKind::Malformed,
+            format!("payload claims invalid or missing required fields: {e}"),
+        )
+    })?;
+
+    let expected_htm_upper = expected_htm.to_ascii_uppercase();
+    if payload.htm != expected_htm_upper {
+        return Err(DPoPVerifyError::invalid_proof(
+            DpopRejectKind::BadHtm,
+            format!(
+                "htm mismatch: expected '{expected_htm_upper}', got '{}'",
+                payload.htm
+            ),
+        ));
+    }
+
+    let expected_htu_norm = normalize_htu(expected_htu).map_err(|e| {
+        DPoPVerifyError::invalid_proof(
+            DpopRejectKind::BadHtu,
+            format!("expected_htu normalisation failed: {e}"),
+        )
+    })?;
+    let proof_htu_norm = normalize_htu(&payload.htu).map_err(|e| {
+        DPoPVerifyError::invalid_proof(
+            DpopRejectKind::BadHtu,
+            format!("proof htu normalisation failed: {e}"),
+        )
+    })?;
+    if proof_htu_norm != expected_htu_norm {
+        return Err(DPoPVerifyError::invalid_proof(
+            DpopRejectKind::BadHtu,
+            format!("htu mismatch: expected '{expected_htu_norm}', got '{proof_htu_norm}'"),
+        ));
+    }
+
+    let now = unix_now().map_err(|_| DPoPVerifyError::ClockError)?;
+    validate_iat_window(payload.iat, now)?;
+
+    // SECURITY: ath binds this proof to the exact access token presented.
+    // Without this, a valid proof could be replayed with a different token.
+    //
+    // SECURITY: comparison is constant-time on the SHA-256-of-lease digest;
+    // see the rationale on the thumbprint check above.
+    let expected_ath = compute_ath(lease_jwt);
+    if !constant_time_eq(payload.ath.as_bytes(), expected_ath.as_bytes()) {
+        return Err(DPoPVerifyError::invalid_proof(
+            DpopRejectKind::BadAth,
+            "ath does not match SHA-256 of the presented access token",
+        ));
+    }
+
+    Ok(payload)
+}
+
+/// Extract and validate the P-256 verifying key from a DPoP proof header,
+/// verifying that its JWK thumbprint matches the Lease's `cnf.jkt`.
+///
+/// Called on cache miss. Performs:
+/// 1. Header JSON parsing and structural validation (typ, alg, jwk, kty, crv).
+/// 2. JWK x/y coordinate extraction and base64url decoding.
+/// 3. EC point construction (SEC1 uncompressed → `P256VerifyingKey`).
+/// 4. JWK thumbprint computation and binding check against `cnf_jkt`.
+///
+/// Does **not** verify the ECDSA signature — the caller does that after
+/// this function returns, for both cache-hit and cache-miss paths.
+fn extract_bound_key(header_b64: &str, cnf_jkt: &str) -> Result<P256VerifyingKey, DPoPVerifyError> {
     let header_bytes = b64url_decode(header_b64, "header", DpopRejectKind::Malformed)?;
     let header: serde_json::Value = serde_json::from_slice(&header_bytes).map_err(|_| {
         DPoPVerifyError::invalid_proof(DpopRejectKind::Malformed, "JWT header is not valid JSON")
@@ -250,16 +359,13 @@ pub fn verify_dpop_proof(
 
     verify_sig(&sec1_public_key, header_b64, payload_b64, &sig_bytes)?;
 
-    // SECURITY: this is the sender-constraint at the heart of DPoP. A proof
-    // signed by a different key (even a valid one) does not satisfy the
-    // commitment made when the Lease was issued. Without this check, token
-    // theft plus any DPoP key would suffice.
+    // SECURITY: sender constraint — the JWK thumbprint of the extracted key
+    // must match cnf.jkt from the already-verified Lease JWT. This binds the
+    // DPoP proof to the key committed at lease issuance.
     //
-    // SECURITY: comparison is constant-time. The compared values are not
-    // secret in this protocol (the attacker holds the lease and its `jkt`),
-    // but timing-leak resistance on cryptographic equality is policy and
-    // costs nothing — and we avoid teaching the codebase that `!=` is fine
-    // on digest-equality paths.
+    // SECURITY: constant-time comparison. The values are not secret in this
+    // protocol, but timing-leak resistance on digest-equality is policy and
+    // costs nothing.
     let thumbprint = compute_jwk_thumbprint(x_b64, y_b64).map_err(|e| {
         DPoPVerifyError::invalid_proof(
             DpopRejectKind::BadKey,
@@ -273,61 +379,7 @@ pub fn verify_dpop_proof(
         ));
     }
 
-    let payload_bytes = b64url_decode(payload_b64, "payload", DpopRejectKind::Malformed)?;
-    let payload: DPoPClaims = serde_json::from_slice(&payload_bytes).map_err(|e| {
-        DPoPVerifyError::invalid_proof(
-            DpopRejectKind::Malformed,
-            format!("payload claims invalid or missing required fields: {e}"),
-        )
-    })?;
-
-    let expected_htm_upper = expected_htm.to_ascii_uppercase();
-    if payload.htm != expected_htm_upper {
-        return Err(DPoPVerifyError::invalid_proof(
-            DpopRejectKind::BadHtm,
-            format!(
-                "htm mismatch: expected '{expected_htm_upper}', got '{}'",
-                payload.htm
-            ),
-        ));
-    }
-
-    let expected_htu_norm = normalize_htu(expected_htu).map_err(|e| {
-        DPoPVerifyError::invalid_proof(
-            DpopRejectKind::BadHtu,
-            format!("expected_htu normalisation failed: {e}"),
-        )
-    })?;
-    let proof_htu_norm = normalize_htu(&payload.htu).map_err(|e| {
-        DPoPVerifyError::invalid_proof(
-            DpopRejectKind::BadHtu,
-            format!("proof htu normalisation failed: {e}"),
-        )
-    })?;
-    if proof_htu_norm != expected_htu_norm {
-        return Err(DPoPVerifyError::invalid_proof(
-            DpopRejectKind::BadHtu,
-            format!("htu mismatch: expected '{expected_htu_norm}', got '{proof_htu_norm}'"),
-        ));
-    }
-
-    let now = unix_now().map_err(|_| DPoPVerifyError::ClockError)?;
-    validate_iat_window(payload.iat, now)?;
-
-    // SECURITY: ath binds this proof to the exact access token presented.
-    // Without this, a valid proof could be replayed with a different token.
-    //
-    // SECURITY: comparison is constant-time on the SHA-256-of-lease digest;
-    // see the rationale on the thumbprint check above.
-    let expected_ath = compute_ath(lease_jwt);
-    if !constant_time_eq(payload.ath.as_bytes(), expected_ath.as_bytes()) {
-        return Err(DPoPVerifyError::invalid_proof(
-            DpopRejectKind::BadAth,
-            "ath does not match SHA-256 of the presented access token",
-        ));
-    }
-
-    Ok(payload)
+    Ok(vk)
 }
 
 fn b64url_decode(s: &str, label: &str, kind: DpopRejectKind) -> Result<Vec<u8>, DPoPVerifyError> {
@@ -389,6 +441,7 @@ fn validate_iat_window(iat: i64, now: u64) -> Result<(), DPoPVerifyError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dpop::key_cache::DPoPKeyCache;
     use crate::dpop::{
         compute_ath, compute_jwk_thumbprint, generate_dpop_keypair, normalize_htu, sign_dpop_proof,
         sign_jwt_es256, unix_now, DPoPClaims,
@@ -399,6 +452,10 @@ mod tests {
 
     fn fake_lease() -> String {
         "eyJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.sig".to_string()
+    }
+
+    fn test_cache() -> DPoPKeyCache {
+        DPoPKeyCache::with_capacity(16)
     }
 
     fn make_proof(htm: &str, htu: &str, jti: &str, lease: &str) -> (String, String) {
@@ -412,8 +469,10 @@ mod tests {
     #[test]
     fn valid_proof_round_trip() {
         let lease = fake_lease();
+        let cache = test_cache();
         let (cnf_jkt, proof) = make_proof(TEST_HTM, TEST_HTU, "jti-001", &lease);
-        let claims = verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt).unwrap();
+        let claims =
+            verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache).unwrap();
         assert_eq!(claims.htm, "POST");
         assert_eq!(claims.jti, "jti-001");
         assert_eq!(claims.ath, compute_ath(&lease));
@@ -422,16 +481,18 @@ mod tests {
     #[test]
     fn htm_case_insensitive_in_request() {
         let lease = fake_lease();
+        let cache = test_cache();
         let (cnf_jkt, proof) = make_proof("post", TEST_HTU, "jti-002", &lease);
-        verify_dpop_proof(&proof, "post", TEST_HTU, &lease, &cnf_jkt).unwrap();
+        verify_dpop_proof(&proof, "post", TEST_HTU, &lease, &cnf_jkt, &cache).unwrap();
     }
 
     #[test]
     fn wrong_method_is_denied() {
         let lease = fake_lease();
+        let cache = test_cache();
         let (cnf_jkt, proof) = make_proof("POST", TEST_HTU, "jti-010", &lease);
         assert!(matches!(
-            verify_dpop_proof(&proof, "GET", TEST_HTU, &lease, &cnf_jkt),
+            verify_dpop_proof(&proof, "GET", TEST_HTU, &lease, &cnf_jkt, &cache),
             Err(DPoPVerifyError::InvalidProof {
                 kind: DpopRejectKind::BadHtm,
                 ..
@@ -442,10 +503,11 @@ mod tests {
     #[test]
     fn wrong_url_is_denied() {
         let lease = fake_lease();
+        let cache = test_cache();
         let (cnf_jkt, proof) = make_proof(TEST_HTM, TEST_HTU, "jti-011", &lease);
         let wrong_htu = "https://gate.example.com/v1/actions/other_action/execute";
         assert!(matches!(
-            verify_dpop_proof(&proof, TEST_HTM, wrong_htu, &lease, &cnf_jkt),
+            verify_dpop_proof(&proof, TEST_HTM, wrong_htu, &lease, &cnf_jkt, &cache),
             Err(DPoPVerifyError::InvalidProof {
                 kind: DpopRejectKind::BadHtu,
                 ..
@@ -458,6 +520,7 @@ mod tests {
         let (sk, pk) = generate_dpop_keypair().unwrap();
         let cnf_jkt = compute_jwk_thumbprint(&pk.x, &pk.y).unwrap();
         let lease = fake_lease();
+        let cache = test_cache();
         let ath = compute_ath(&lease);
         let old_iat = (unix_now().unwrap() as i64) - (IAT_MAX_AGE_SECS as i64) - 10;
 
@@ -474,7 +537,7 @@ mod tests {
         };
         let proof = sign_jwt_es256(&sk, &header, &payload).unwrap();
         assert!(matches!(
-            verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt),
+            verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache),
             Err(DPoPVerifyError::InvalidProof {
                 kind: DpopRejectKind::BadIat,
                 ..
@@ -487,6 +550,7 @@ mod tests {
         let (sk, pk) = generate_dpop_keypair().unwrap();
         let cnf_jkt = compute_jwk_thumbprint(&pk.x, &pk.y).unwrap();
         let lease = fake_lease();
+        let cache = test_cache();
         let ath = compute_ath(&lease);
         let future_iat = (unix_now().unwrap() as i64) + (IAT_CLOCK_SKEW_SECS as i64) + 60;
 
@@ -503,7 +567,7 @@ mod tests {
         };
         let proof = sign_jwt_es256(&sk, &header, &payload).unwrap();
         assert!(matches!(
-            verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt),
+            verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache),
             Err(DPoPVerifyError::InvalidProof {
                 kind: DpopRejectKind::BadIat,
                 ..
@@ -514,11 +578,12 @@ mod tests {
     #[test]
     fn wrong_key_binding_is_denied() {
         let lease = fake_lease();
+        let cache = test_cache();
         let (_, proof) = make_proof(TEST_HTM, TEST_HTU, "jti-020", &lease);
         let (_, other_pk) = generate_dpop_keypair().unwrap();
         let wrong_jkt = compute_jwk_thumbprint(&other_pk.x, &other_pk.y).unwrap();
         assert!(matches!(
-            verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &wrong_jkt),
+            verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &wrong_jkt, &cache),
             Err(DPoPVerifyError::InvalidProof {
                 kind: DpopRejectKind::BadKey,
                 ..
@@ -529,10 +594,18 @@ mod tests {
     #[test]
     fn wrong_ath_is_denied() {
         let real_lease = fake_lease();
+        let cache = test_cache();
         let (cnf_jkt, proof) = make_proof(TEST_HTM, TEST_HTU, "jti-030", &real_lease);
         let different_lease = "eyJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJvdGhlciJ9.sig2";
         assert!(matches!(
-            verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, different_lease, &cnf_jkt),
+            verify_dpop_proof(
+                &proof,
+                TEST_HTM,
+                TEST_HTU,
+                different_lease,
+                &cnf_jkt,
+                &cache
+            ),
             Err(DPoPVerifyError::InvalidProof {
                 kind: DpopRejectKind::BadAth,
                 ..
@@ -543,12 +616,13 @@ mod tests {
     #[test]
     fn tampered_header_is_denied() {
         let lease = fake_lease();
+        let cache = test_cache();
         let (cnf_jkt, proof) = make_proof(TEST_HTM, TEST_HTU, "jti-040", &lease);
         let mut parts: Vec<String> = proof.splitn(3, '.').map(String::from).collect();
         parts[0].push('X');
         let tampered = parts.join(".");
         assert!(matches!(
-            verify_dpop_proof(&tampered, TEST_HTM, TEST_HTU, &lease, &cnf_jkt),
+            verify_dpop_proof(&tampered, TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache),
             Err(DPoPVerifyError::InvalidProof { .. })
         ));
     }
@@ -556,12 +630,13 @@ mod tests {
     #[test]
     fn tampered_payload_is_denied() {
         let lease = fake_lease();
+        let cache = test_cache();
         let (cnf_jkt, proof) = make_proof(TEST_HTM, TEST_HTU, "jti-041", &lease);
         let mut parts: Vec<String> = proof.splitn(3, '.').map(String::from).collect();
         parts[1].push('X');
         let tampered = parts.join(".");
         assert!(matches!(
-            verify_dpop_proof(&tampered, TEST_HTM, TEST_HTU, &lease, &cnf_jkt),
+            verify_dpop_proof(&tampered, TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache),
             Err(DPoPVerifyError::InvalidProof { .. })
         ));
     }
@@ -569,6 +644,7 @@ mod tests {
     #[test]
     fn wrong_key_signature_is_denied() {
         let lease = fake_lease();
+        let cache = test_cache();
         let ath = compute_ath(&lease);
         let (sk_a, pk_a) = generate_dpop_keypair().unwrap();
         let (_, pk_b) = generate_dpop_keypair().unwrap();
@@ -585,11 +661,14 @@ mod tests {
             ath,
         };
         let proof = sign_jwt_es256(&sk_a, &header_b, &payload).unwrap();
+        // The embedded JWK (pk_b) does not match cnf_jkt_a. In the cache-miss
+        // path, the thumbprint binding check in `extract_bound_key` catches this
+        // before signature verification — producing BadKey, not BadSig.
         let cnf_jkt_a = compute_jwk_thumbprint(&pk_a.x, &pk_a.y).unwrap();
         assert!(matches!(
-            verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt_a),
+            verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt_a, &cache),
             Err(DPoPVerifyError::InvalidProof {
-                kind: DpopRejectKind::BadSig,
+                kind: DpopRejectKind::BadKey,
                 ..
             })
         ));
@@ -644,6 +723,7 @@ mod tests {
     fn missing_jwk_header_is_denied() {
         let (sk, pk) = generate_dpop_keypair().unwrap();
         let lease = fake_lease();
+        let cache = test_cache();
         let ath = compute_ath(&lease);
         let cnf_jkt = compute_jwk_thumbprint(&pk.x, &pk.y).unwrap();
         let header = serde_json::json!({ "typ": "dpop+jwt", "alg": "ES256" });
@@ -656,7 +736,7 @@ mod tests {
         };
         let proof = sign_jwt_es256(&sk, &header, &payload).unwrap();
         assert!(matches!(
-            verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt),
+            verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache),
             Err(DPoPVerifyError::InvalidProof {
                 kind: DpopRejectKind::BadHeader,
                 ..
@@ -668,6 +748,7 @@ mod tests {
     fn wrong_typ_is_denied() {
         let (sk, pk) = generate_dpop_keypair().unwrap();
         let lease = fake_lease();
+        let cache = test_cache();
         let ath = compute_ath(&lease);
         let cnf_jkt = compute_jwk_thumbprint(&pk.x, &pk.y).unwrap();
         let header = serde_json::json!({
@@ -683,7 +764,7 @@ mod tests {
         };
         let proof = sign_jwt_es256(&sk, &header, &payload).unwrap();
         assert!(matches!(
-            verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt),
+            verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache),
             Err(DPoPVerifyError::InvalidProof {
                 kind: DpopRejectKind::BadHeader,
                 ..
@@ -694,14 +775,140 @@ mod tests {
     #[test]
     fn two_part_token_is_denied() {
         let lease = fake_lease();
+        let cache = test_cache();
         let (cnf_jkt, _) = make_proof(TEST_HTM, TEST_HTU, "jti-053", &lease);
         assert!(matches!(
-            verify_dpop_proof("only.two", TEST_HTM, TEST_HTU, &lease, &cnf_jkt),
+            verify_dpop_proof("only.two", TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache),
             Err(DPoPVerifyError::InvalidProof {
                 kind: DpopRejectKind::Malformed,
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn cache_hit_reuses_key_across_proofs() {
+        let (sk, pk) = generate_dpop_keypair().unwrap();
+        let cnf_jkt = compute_jwk_thumbprint(&pk.x, &pk.y).unwrap();
+        let lease = fake_lease();
+        let cache = test_cache();
+        let ath = compute_ath(&lease);
+
+        // First proof: cache miss — populates the cache.
+        let proof1 = sign_dpop_proof(&sk, TEST_HTM, TEST_HTU, &ath, "jti-cache-1").unwrap();
+        let claims1 =
+            verify_dpop_proof(&proof1, TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache).unwrap();
+        assert_eq!(cache.len(), 1, "cache miss must insert an entry");
+
+        // Second proof (same key, different jti): cache hit — no new entry.
+        let proof2 = sign_dpop_proof(&sk, TEST_HTM, TEST_HTU, &ath, "jti-cache-2").unwrap();
+        let claims2 =
+            verify_dpop_proof(&proof2, TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache).unwrap();
+        assert_eq!(cache.len(), 1, "cache hit must not grow the cache");
+
+        assert_eq!(claims1.htm, claims2.htm);
+        assert_eq!(claims1.ath, claims2.ath);
+        assert_ne!(
+            claims1.jti, claims2.jti,
+            "proofs must have distinct jti values"
+        );
+    }
+
+    #[test]
+    fn failed_binding_does_not_populate_cache() {
+        let lease = fake_lease();
+        let cache = test_cache();
+        let (_, proof) = make_proof(TEST_HTM, TEST_HTU, "jti-no-cache", &lease);
+        let (_, other_pk) = generate_dpop_keypair().unwrap();
+        let wrong_jkt = compute_jwk_thumbprint(&other_pk.x, &other_pk.y).unwrap();
+
+        // Verification fails (thumbprint mismatch) — cache must stay empty.
+        assert!(verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &wrong_jkt, &cache).is_err());
+        assert!(
+            cache.is_empty(),
+            "failed key binding must not populate the cache"
+        );
+    }
+
+    /// SECURITY: a stolen Lease JWT (which reveals `cnf.jkt`) must not
+    /// grant access without the corresponding DPoP private key. This test
+    /// verifies the cache-hit path: the legitimate key is cached, then an
+    /// attacker presents a proof signed with a different key. The cached
+    /// key must cause signature verification to fail, and the cache entry
+    /// must survive so the legitimate client is not disrupted.
+    #[test]
+    fn cache_hit_wrong_signature_is_denied_and_cache_survives() {
+        let (sk_legit, pk_legit) = generate_dpop_keypair().unwrap();
+        let cnf_jkt = compute_jwk_thumbprint(&pk_legit.x, &pk_legit.y).unwrap();
+        let lease = fake_lease();
+        let cache = test_cache();
+        let ath = compute_ath(&lease);
+
+        // Legitimate client populates the cache.
+        let legit_proof =
+            sign_dpop_proof(&sk_legit, TEST_HTM, TEST_HTU, &ath, "jti-legit").unwrap();
+        verify_dpop_proof(&legit_proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache).unwrap();
+        assert_eq!(cache.len(), 1);
+
+        // Attacker signs a proof with a different key but presents the
+        // same cnf_jkt (stolen from the Lease). The cache-hit path must
+        // use the cached (legitimate) key and reject the signature.
+        let (sk_attacker, _) = generate_dpop_keypair().unwrap();
+        let attacker_proof =
+            sign_dpop_proof(&sk_attacker, TEST_HTM, TEST_HTU, &ath, "jti-attack").unwrap();
+        assert!(matches!(
+            verify_dpop_proof(
+                &attacker_proof,
+                TEST_HTM,
+                TEST_HTU,
+                &lease,
+                &cnf_jkt,
+                &cache
+            ),
+            Err(DPoPVerifyError::InvalidProof {
+                kind: DpopRejectKind::BadSig,
+                ..
+            })
+        ));
+
+        // Cache must survive the failed attempt — the legitimate client
+        // must not be disrupted.
+        assert_eq!(cache.len(), 1, "failed verify must not evict cache entry");
+
+        // Legitimate client can still authenticate.
+        let legit_proof2 =
+            sign_dpop_proof(&sk_legit, TEST_HTM, TEST_HTU, &ath, "jti-legit-2").unwrap();
+        verify_dpop_proof(&legit_proof2, TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache).unwrap();
+    }
+
+    /// SECURITY: on cache miss, if `extract_bound_key` succeeds (valid
+    /// header, thumbprint matches `cnf_jkt`) but signature verification
+    /// fails, the key must NOT be inserted into the cache. This prevents
+    /// a DoS vector where an attacker floods proofs with valid headers
+    /// but invalid signatures to pollute the cache.
+    #[test]
+    fn failed_sig_on_cache_miss_does_not_populate_cache() {
+        let (sk, pk) = generate_dpop_keypair().unwrap();
+        let cnf_jkt = compute_jwk_thumbprint(&pk.x, &pk.y).unwrap();
+        let lease = fake_lease();
+        let cache = test_cache();
+        let ath = compute_ath(&lease);
+
+        // Sign a valid proof, then corrupt the payload segment so the
+        // header (and thus extract_bound_key) succeeds but signature
+        // verification fails.
+        let proof = sign_dpop_proof(&sk, TEST_HTM, TEST_HTU, &ath, "jti-sigfail").unwrap();
+        let mut parts: Vec<String> = proof.splitn(3, '.').map(String::from).collect();
+        parts[1].push('X'); // corrupt payload → sig mismatch
+        let tampered = parts.join(".");
+
+        assert!(
+            verify_dpop_proof(&tampered, TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache).is_err()
+        );
+        assert!(
+            cache.is_empty(),
+            "failed signature verification must not populate the cache"
+        );
     }
 
     /// SECURITY regression: attacker-controlled header and payload fields
@@ -753,6 +960,7 @@ mod tests {
         let (sk, pk) = generate_dpop_keypair().unwrap();
         let cnf_jkt = compute_jwk_thumbprint(&pk.x, &pk.y).unwrap();
         let lease = fake_lease();
+        let cache = test_cache();
         let ath = compute_ath(&lease);
 
         // --- Path A: header field (`typ`). Rejected at the first header
@@ -770,7 +978,7 @@ mod tests {
             ath: ath.clone(),
         };
         let proof = sign_jwt_es256(&sk, &header, &payload).unwrap();
-        match verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt) {
+        match verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache) {
             Err(DPoPVerifyError::InvalidProof {
                 kind: DpopRejectKind::BadHeader,
                 reason,
@@ -795,7 +1003,7 @@ mod tests {
             ath,
         };
         let proof = sign_jwt_es256(&sk, &header, &payload).unwrap();
-        match verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt) {
+        match verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt, &cache) {
             Err(DPoPVerifyError::InvalidProof {
                 kind: DpopRejectKind::BadHtm,
                 reason,

@@ -19,6 +19,7 @@ use tracing::instrument;
 use crate::issuer::jwt::{Jwks, LeaseClaims};
 use crate::replay::{ReplayCache, ReplayError};
 
+use crate::dpop::key_cache::DPoPKeyCache;
 use crate::dpop::verify::{verify_dpop_proof, DPoPVerifyError, DpopRejectKind};
 
 /// Errors produced during authentication and sender-constraint verification.
@@ -195,7 +196,7 @@ pub struct AuthContext {
 /// SECURITY: fails closed at every step. Any failure returns `Err(AuthError)`.
 /// The caller (route handler) maps this to a structured 401/503 response
 /// via `PipelineError`.
-#[instrument(name = "auth.authenticate", skip(authorization_header, dpop_header, jwks, replay_cache), fields(%htm, %htu))]
+#[instrument(name = "auth.authenticate", skip(authorization_header, dpop_header, jwks, replay_cache, key_cache), fields(%htm, %htu))]
 pub async fn authenticate(
     authorization_header: Option<&str>,
     dpop_header: Option<&str>,
@@ -203,6 +204,7 @@ pub async fn authenticate(
     htu: &str,
     jwks: &Jwks,
     replay_cache: &ReplayCache,
+    key_cache: &DPoPKeyCache,
 ) -> Result<AuthContext, AuthError> {
     let lease_jwt = extract_dpop_token(authorization_header)?;
 
@@ -217,7 +219,8 @@ pub async fn authenticate(
         crate::issuer::AUDIENCE,
     )?;
 
-    let dpop_claims = verify_dpop_proof(dpop_proof, htm, htu, lease_jwt, &claims.cnf.jkt)?;
+    let dpop_claims =
+        verify_dpop_proof(dpop_proof, htm, htu, lease_jwt, &claims.cnf.jkt, key_cache)?;
 
     // 5. Anti-replay check on DPoP jti
     //
@@ -314,6 +317,7 @@ fn extract_dpop_token(header_value: Option<&str>) -> Result<&str, AuthError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dpop::key_cache::DPoPKeyCache;
     use crate::issuer::jwt::{generate_keypair, sign_lease, Budgets, CnfClaim};
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -587,6 +591,7 @@ mod tests {
     #[tokio::test]
     async fn invalid_jwt_does_not_pollute_replay_cache() {
         let cache = ReplayCache::in_memory(std::time::Duration::from_secs(60));
+        let key_cache = DPoPKeyCache::new();
         let (_, jwks) = keypair_and_jwks();
 
         // Completely invalid JWT — fails at step 3 (lease signature check).
@@ -597,6 +602,7 @@ mod tests {
             "http://localhost/v1/actions/test/execute",
             &jwks,
             &cache,
+            &key_cache,
         )
         .await;
 
@@ -615,6 +621,7 @@ mod tests {
     #[tokio::test]
     async fn valid_jwt_missing_dpop_does_not_pollute_replay_cache() {
         let cache = ReplayCache::in_memory(std::time::Duration::from_secs(60));
+        let key_cache = DPoPKeyCache::new();
         let (sk, jwks) = keypair_and_jwks();
         let claims = test_claims();
         let lease_jwt = sign_lease(&claims, &sk).unwrap();
@@ -627,6 +634,7 @@ mod tests {
             "http://localhost/v1/actions/test/execute",
             &jwks,
             &cache,
+            &key_cache,
         )
         .await;
 

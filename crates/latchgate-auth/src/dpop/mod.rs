@@ -11,6 +11,7 @@
 //! The signing/verification split keeps client SDK concerns separate from
 //! enforcement logic while sharing types and cryptographic helpers.
 
+pub mod key_cache;
 pub mod operator;
 pub mod verify;
 

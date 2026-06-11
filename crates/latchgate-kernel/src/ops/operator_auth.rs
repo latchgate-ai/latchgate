@@ -43,6 +43,7 @@ pub async fn verify(
         &htu,
         credentials,
         &state.auth.replay_cache,
+        &state.auth.dpop_key_cache,
     )
     .await
     .map_err(|e| match e {

@@ -1237,6 +1237,7 @@ pub async fn poll_approval_status(
         &htu,
         state.auth.issuer.jwks(),
         &state.auth.replay_cache,
+        &state.auth.dpop_key_cache,
     )
     .await
     .map_err(|e| {

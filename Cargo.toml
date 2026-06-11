@@ -151,6 +151,7 @@ globset = "0.4"
 
 # Concurrent data structures
 dashmap = "6"
+lru     = "0.16"
 
 # Embedded OPA evaluator (disable compiled-policy to avoid unmaintained bincode).
 # `glob` is required: the shipped policy uses `glob.match` for sensitive-path
