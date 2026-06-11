@@ -104,6 +104,8 @@ fn bench_dpop_verify_only(c: &mut Criterion) {
     // Generate proof ONCE outside the benchmark loop.
     let proof = sign_dpop_proof(&sk, htm, htu, &ath, "bench-static-jti").unwrap();
 
+    let key_cache = DPoPKeyCache::default();
+
     c.bench_function("dpop_verify_only_p256", |b| {
         b.iter(|| {
             let result = verify_dpop_proof(
@@ -112,6 +114,7 @@ fn bench_dpop_verify_only(c: &mut Criterion) {
                 black_box(htu),
                 black_box(lease_jwt),
                 black_box(&jkt),
+                black_box(&key_cache),
             );
             black_box(result)
         })
