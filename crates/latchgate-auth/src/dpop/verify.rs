@@ -13,7 +13,8 @@
 
 use base64ct::{Base64UrlUnpadded, Encoding};
 use latchgate_core::constant_time_eq;
-use p256::ecdsa::{signature::Verifier, Signature, VerifyingKey as P256VerifyingKey};
+use p256::ecdsa::VerifyingKey as P256VerifyingKey;
+use ring::signature::{UnparsedPublicKey, ECDSA_P256_SHA256_FIXED};
 
 use super::key_cache::DPoPKeyCache;
 use super::{compute_ath, compute_jwk_thumbprint, normalize_htu, unix_now, DPoPClaims};
@@ -188,32 +189,32 @@ pub fn verify_dpop_proof(
     }
     let (header_b64, payload_b64, sig_b64) = (parts[0], parts[1], parts[2]);
 
-    // ── Resolve verifying key ─────────────────────────────────────────
+    // ── Resolve cached SEC1 public key bytes ─────────────────────────
     //
-    // Cache hit:  use the previously-verified key directly. Header
-    //             parsing, JWK extraction, and thumbprint check are
-    //             skipped — the cnf.jkt → key binding was established
-    //             on initial insertion and is secured by SHA-256
-    //             preimage resistance.
+    // Cache hit:  use the previously-validated SEC1 public key bytes
+    //             directly. Header parsing, JWK extraction, thumbprint
+    //             verification, and EC point validation are skipped.
     //
     // Cache miss: full header parse → JWK validation → EC point
     //             construction → thumbprint binding check.
-    let (vk, cache_hit) = match key_cache.get(cnf_jkt) {
-        Some(cached_vk) => (cached_vk, true),
+    let (sec1_public_key, cache_hit) = match key_cache.get(cnf_jkt) {
+        Some(cached_key) => (cached_key, true),
         None => (extract_bound_key(header_b64, cnf_jkt)?, false),
     };
 
-    // ── Verify ECDSA signature (mandatory per RFC 9449, every request) ──
-    verify_sig(&vk, header_b64, payload_b64, sig_b64)?;
+    let sig_bytes = b64url_decode(sig_b64, "signature", DpopRejectKind::BadSig)?;
 
+    verify_sig(&sec1_public_key, header_b64, payload_b64, &sig_bytes)?;
     // ── Cache on miss (after successful signature verification) ──────
     //
     // SECURITY: insertion only after proof-of-possession. The thumbprint
     // binding alone would suffice (SHA-256 preimage resistance guarantees
-    // the cached key matches cnf_jkt), but verifying the signature first
-    // means we never cache a key that hasn't appeared in a valid proof.
+    // the cached SEC1 public-key bytes match cnf_jkt), but verifying the
+    // signature first means we never cache a public key that hasn't
+    // appeared in a valid proof. Storing SEC1 bytes avoids per-request
+    // P256VerifyingKey → SEC1 re-encoding on cache hits.
     if !cache_hit {
-        key_cache.insert(cnf_jkt.to_owned(), vk);
+        key_cache.insert(cnf_jkt.to_owned(), sec1_public_key);
     }
 
     let payload_bytes = b64url_decode(payload_b64, "payload", DpopRejectKind::Malformed)?;
@@ -273,18 +274,20 @@ pub fn verify_dpop_proof(
     Ok(payload)
 }
 
-/// Extract and validate the P-256 verifying key from a DPoP proof header,
-/// verifying that its JWK thumbprint matches the Lease's `cnf.jkt`.
+/// Extract, validate, and return the SEC1-encoded P-256 public key
+/// bytes from a DPoP proof header, verifying that its JWK thumbprint
+/// matches the Lease's `cnf.jkt`.
 ///
 /// Called on cache miss. Performs:
 /// 1. Header JSON parsing and structural validation (typ, alg, jwk, kty, crv).
 /// 2. JWK x/y coordinate extraction and base64url decoding.
-/// 3. EC point construction (SEC1 uncompressed → `P256VerifyingKey`).
+/// 3. SEC1 uncompressed public-key construction and EC point validation.
 /// 4. JWK thumbprint computation and binding check against `cnf_jkt`.
+/// 5. Return validated SEC1 public-key bytes for caching.
 ///
 /// Does **not** verify the ECDSA signature — the caller does that after
 /// this function returns, for both cache-hit and cache-miss paths.
-fn extract_bound_key(header_b64: &str, cnf_jkt: &str) -> Result<P256VerifyingKey, DPoPVerifyError> {
+fn extract_bound_key(header_b64: &str, cnf_jkt: &str) -> Result<[u8; 65], DPoPVerifyError> {
     let header_bytes = b64url_decode(header_b64, "header", DpopRejectKind::Malformed)?;
     let header: serde_json::Value = serde_json::from_slice(&header_bytes).map_err(|_| {
         DPoPVerifyError::invalid_proof(DpopRejectKind::Malformed, "JWT header is not valid JSON")
@@ -353,7 +356,14 @@ fn extract_bound_key(header_b64: &str, cnf_jkt: &str) -> Result<P256VerifyingKey
         DPoPVerifyError::invalid_proof(DpopRejectKind::BadHeader, "invalid base64url in jwk.y")
     })?;
 
-    let vk = vk_from_xy(&x_bytes, &y_bytes)?;
+    let sec1_public_key = build_sec1_uncompressed(&x_bytes, &y_bytes)?;
+
+    P256VerifyingKey::from_sec1_bytes(&sec1_public_key).map_err(|_| {
+        DPoPVerifyError::invalid_proof(
+            DpopRejectKind::BadKey,
+            "invalid P-256 public key (point not on curve)",
+        )
+    })?;
 
     // SECURITY: sender constraint — the JWK thumbprint of the extracted key
     // must match cnf.jkt from the already-verified Lease JWT. This binds the
@@ -375,7 +385,10 @@ fn extract_bound_key(header_b64: &str, cnf_jkt: &str) -> Result<P256VerifyingKey
         ));
     }
 
-    Ok(vk)
+    let mut arr = [0u8; 65];
+    arr.copy_from_slice(&sec1_public_key);
+
+    Ok(arr)
 }
 
 fn b64url_decode(s: &str, label: &str, kind: DpopRejectKind) -> Result<Vec<u8>, DPoPVerifyError> {
@@ -384,42 +397,44 @@ fn b64url_decode(s: &str, label: &str, kind: DpopRejectKind) -> Result<Vec<u8>, 
     })
 }
 
-/// Reconstruct a P-256 verifying key from raw x/y coordinate bytes.
+////// Build a SEC1 uncompressed point encoding from raw x/y coordinate bytes.
 ///
-/// Uses SEC1 uncompressed point encoding: 0x04 || x (32 bytes) || y (32 bytes).
-fn vk_from_xy(x: &[u8], y: &[u8]) -> Result<P256VerifyingKey, DPoPVerifyError> {
-    let mut sec1 = Vec::with_capacity(1 + x.len() + y.len());
-    sec1.push(0x04); // uncompressed point prefix
+/// Format: 0x04 || x (32 bytes) || y (32 bytes).
+fn build_sec1_uncompressed(x: &[u8], y: &[u8]) -> Result<Vec<u8>, DPoPVerifyError> {
+    let mut sec1 = Vec::with_capacity(65);
+    if x.len() != 32 || y.len() != 32 {
+        return Err(DPoPVerifyError::invalid_proof(
+            DpopRejectKind::BadKey,
+            "P-256 coordinates must be exactly 32 bytes each",
+        ));
+    }
+    sec1.push(0x04);
     sec1.extend_from_slice(x);
     sec1.extend_from_slice(y);
-
-    P256VerifyingKey::from_sec1_bytes(&sec1).map_err(|_| {
-        DPoPVerifyError::invalid_proof(
-            DpopRejectKind::BadKey,
-            "invalid EC public key in jwk (bad x/y coordinates)",
-        )
-    })
+    Ok(sec1)
 }
 
 fn verify_sig(
-    vk: &P256VerifyingKey,
+    sec1_public_key: &[u8],
     header_b64: &str,
     payload_b64: &str,
-    sig_b64: &str,
+    sig_bytes: &[u8],
 ) -> Result<(), DPoPVerifyError> {
-    let signing_input = format!("{header_b64}.{payload_b64}");
-
-    let sig_bytes = b64url_decode(sig_b64, "signature", DpopRejectKind::BadSig)?;
-    let sig = Signature::try_from(sig_bytes.as_slice()).map_err(|_| {
-        DPoPVerifyError::invalid_proof(
+    if sig_bytes.len() != 64 {
+        return Err(DPoPVerifyError::invalid_proof(
             DpopRejectKind::BadSig,
-            "signature is not a valid ES256 (P-256) signature",
-        )
-    })?;
+            "signature is not a valid ES256 (P-256) signature (expected 64 bytes)",
+        ));
+    }
 
-    vk.verify(signing_input.as_bytes(), &sig).map_err(|_| {
-        DPoPVerifyError::invalid_proof(DpopRejectKind::BadSig, "signature verification failed")
-    })
+    let signing_input = format!("{header_b64}.{payload_b64}");
+    let public_key = UnparsedPublicKey::new(&ECDSA_P256_SHA256_FIXED, sec1_public_key);
+
+    public_key
+        .verify(signing_input.as_bytes(), sig_bytes)
+        .map_err(|_| {
+            DPoPVerifyError::invalid_proof(DpopRejectKind::BadSig, "signature verification failed")
+        })
 }
 
 /// Validate that `iat` falls within `[now - max_age, now + skew]`.
@@ -675,6 +690,58 @@ mod tests {
         let cnf_jkt_a = compute_jwk_thumbprint(&pk_a.x, &pk_a.y).unwrap();
         assert!(matches!(
             verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt_a, &cache),
+            Err(DPoPVerifyError::InvalidProof {
+                kind: DpopRejectKind::BadKey,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn invalid_ec_point_is_denied() {
+        let (sk, _pk) = generate_dpop_keypair().unwrap();
+
+        let lease = fake_lease();
+        let cache = test_cache();
+        let ath = compute_ath(&lease);
+
+        // Intentionally invalid coordinates: not a valid P-256 point.
+        let bad_x = Base64UrlUnpadded::encode_string(&[0u8; 32]);
+        let bad_y = Base64UrlUnpadded::encode_string(&[0u8; 32]);
+
+        let header = serde_json::json!({
+            "typ": "dpop+jwt",
+            "alg": "ES256",
+            "jwk": {
+                "kty": "EC",
+                "crv": "P-256",
+                "x": bad_x,
+                "y": bad_y
+            }
+        });
+
+        let payload = DPoPClaims {
+            jti: "jti-invalid-point".into(),
+            htm: "POST".into(),
+            htu: normalize_htu(TEST_HTU).unwrap(),
+            iat: unix_now().unwrap() as i64,
+            ath,
+        };
+        // The all-zero point (0, 0) is not on the P-256 curve, so
+        // `extract_bound_key` rejects it during EC point validation.
+        // Thumbprint binding and signature verification are never
+        // reached. The dummy thumbprint value is therefore irrelevant.
+        let proof = sign_jwt_es256(&sk, &header, &payload).unwrap();
+
+        assert!(matches!(
+            verify_dpop_proof(
+                &proof,
+                TEST_HTM,
+                TEST_HTU,
+                &lease,
+                "dummy-thumbprint",
+                &cache,
+            ),
             Err(DPoPVerifyError::InvalidProof {
                 kind: DpopRejectKind::BadKey,
                 ..
