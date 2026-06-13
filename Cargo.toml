@@ -88,6 +88,7 @@ toml       = "1"
 jsonwebtoken            = "9"
 p256                    = { version = "0.13", features = ["ecdsa", "pem", "jwk"] }
 rand                    = "0.8"
+ring                    = "0.17.14"
 sha2                    = "0.11"
 hex                     = "0.4"
 base64ct                = { version = "1", features = ["alloc"] }
