@@ -86,42 +86,6 @@ fn bench_dpop_verify_cached(c: &mut Criterion) {
     });
 }
 
-fn bench_dpop_verify_only(c: &mut Criterion) {
-    use latchgate_auth::dpop::verify::verify_dpop_proof;
-    use latchgate_auth::dpop::{
-        compute_ath, compute_jwk_thumbprint, generate_dpop_keypair, sign_dpop_proof,
-    };
-    use latchgate_auth::DPoPKeyCache;
-
-    let (sk, pk) = generate_dpop_keypair().unwrap();
-    let jkt = compute_jwk_thumbprint(&pk.x, &pk.y).unwrap();
-
-    let htm = "POST";
-    let htu = "http://localhost:3000/v1/actions/http_get/execute";
-    let lease_jwt = "eyJhbGciOiJFUzI1NiJ9.bench-lease-placeholder";
-
-    let ath = compute_ath(lease_jwt);
-
-    // Generate proof ONCE outside the benchmark loop.
-    let proof = sign_dpop_proof(&sk, htm, htu, &ath, "bench-static-jti").unwrap();
-
-    let key_cache = DPoPKeyCache::default();
-
-    c.bench_function("dpop_verify_only_p256", |b| {
-        b.iter(|| {
-            let result = verify_dpop_proof(
-                black_box(&proof),
-                black_box(htm),
-                black_box(htu),
-                black_box(lease_jwt),
-                black_box(&jkt),
-                black_box(&key_cache),
-            );
-            black_box(result)
-        })
-    });
-}
-
 // ---------------------------------------------------------------------------
 // 2. Embedded policy evaluation (regorus)
 // ---------------------------------------------------------------------------
@@ -402,7 +366,6 @@ fn nanos_id() -> u64 {
 criterion_group!(
     benches,
     bench_dpop_sign_verify,
-    bench_dpop_verify_only,
     bench_dpop_verify_cached,
     bench_policy_eval,
     bench_wasm_instantiation,
