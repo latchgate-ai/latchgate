@@ -32,7 +32,6 @@ use std::num::NonZeroUsize;
 use std::sync::Mutex;
 
 use lru::LruCache;
-use p256::ecdsa::VerifyingKey as P256VerifyingKey;
 
 /// Default cache capacity (number of distinct DPoP keys).
 ///
@@ -56,7 +55,7 @@ const DEFAULT_CAPACITY: usize = 256;
 /// causes cache misses until the entry is re-inserted. No security
 /// property depends on cache consistency.
 pub struct DPoPKeyCache {
-    inner: Mutex<LruCache<String, P256VerifyingKey>>,
+    inner: Mutex<LruCache<String, [u8; 65]>>,
 }
 
 // Compile-time assertion: the cache must be shareable across async tasks
@@ -96,7 +95,7 @@ impl DPoPKeyCache {
     /// promoted to most-recently-used, reducing its eviction priority.
     ///
     /// The returned key is a clone — the lock is released before return.
-    pub fn get(&self, thumbprint: &str) -> Option<P256VerifyingKey> {
+    pub fn get(&self, thumbprint: &str) -> Option<[u8; 65]> {
         self.inner
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -122,7 +121,7 @@ impl DPoPKeyCache {
     /// Violating this contract allows cache poisoning: a bad key cached
     /// under a valid thumbprint would cause all subsequent signature
     /// verifications for that session to fail (denial of service).
-    pub fn insert(&self, thumbprint: String, key: P256VerifyingKey) {
+    pub fn insert(&self, thumbprint: String, key: [u8; 65]) {
         self.inner
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -176,11 +175,17 @@ impl fmt::Debug for DPoPKeyCache {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use p256::ecdsa::SigningKey;
 
-    /// Generate a random P-256 verifying key for testing.
-    fn random_vk() -> P256VerifyingKey {
-        *SigningKey::random(&mut rand::rngs::OsRng).verifying_key()
+    /// Generate distinct SEC1 public-key byte arrays for cache tests.
+    use std::sync::atomic::{AtomicU8, Ordering};
+
+    fn random_vk() -> [u8; 65] {
+        static COUNTER: AtomicU8 = AtomicU8::new(1);
+
+        let mut key = [0u8; 65];
+        key[0] = 0x04;
+        key[1] = COUNTER.fetch_add(1, Ordering::Relaxed);
+        key
     }
 
     #[test]
