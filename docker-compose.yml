@@ -49,7 +49,7 @@ services:
 
   opa:
     <<: *hardened
-    image: openpolicyagent/opa:1.17.1@sha256:dc009236137bb225a1ef09293bb32f2ee1861cc428870d297bf71412d50221c3
+    image: openpolicyagent/opa:1.18.2@sha256:cba27d3c6af2feba1e4d6e6b5e24df5b53db332420d4148a90acccd12efae6ed
     read_only: true
     profiles: ["opa", "dev"]
     ports:
