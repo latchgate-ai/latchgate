@@ -268,7 +268,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-path: ${{ env.ARCHIVE }}
 
@@ -285,7 +285,7 @@ jobs:
           cp "$SBOM" sbom-${{ matrix.target }}.json
 
       - name: Attest SBOM
-        uses: actions/attest-sbom@36590ecaf038d6630c74f2da259095627d52ac11 # v4
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
         with:
           subject-path: ${{ env.ARCHIVE }}
           sbom-path: sbom-${{ matrix.target }}.json

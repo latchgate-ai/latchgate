@@ -99,8 +99,21 @@ jobs:
           FAIL_FILE=$(mktemp)
           echo 0 > "$FAIL_FILE"
 
+          # Verified-legitimate recent publishes — remove entries
+          # once they age past MIN_AGE_DAYS.
+          ALLOWLIST=(
+            "crossbeam-epoch@0.9.20"  # 2026-07-06, taiki-e
+          )
+
           # Extract name+version pairs from Cargo.lock
           while read -r name version; do
+
+            # Skip allowlisted crates
+            skip=0
+            for entry in "${ALLOWLIST[@]}"; do
+              [[ "${name}@${version}" == "$entry" ]] && skip=1
+            done
+            [[ $skip -eq 1 ]] && continue
 
             # Skip path/git deps (workspace crates)
             grep -qP "^source = \"(path|git)" <<< \
