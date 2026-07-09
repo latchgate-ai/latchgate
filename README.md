@@ -162,15 +162,6 @@ async with LatchGateClient() as client:
     # Token injected at the host layer. Policy checked. Budget enforced. Signed receipt.
 ```
 
-### CI/CD
-
-```yaml
-- uses: latchgate-ai/latchgate-action@v1
-  with:
-    version: "0.1.0"
-    allowed_domains: [api.github.com, hooks.slack.com]
-```
-
 ## Operations
 
 ```bash

@@ -452,7 +452,6 @@ AI SDK, OpenAI Agents, Pydantic AI.
   healthcheck.
 - `docker-compose.yml` with profiles for Redis, OPA, Squid egress proxy, and
   Prometheus; `cap_drop` and `security_opt` hardening.
-- GitHub Action (`latchgate-ai/latchgate-action@v1`) for gating tool calls in CI.
 
 ### Testing & fuzzing
 
