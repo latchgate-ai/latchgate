@@ -25,7 +25,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.2.0-rc.2"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.93"
 license = "Apache-2.0"
@@ -35,24 +35,24 @@ unsafe_code = "deny"
 
 [workspace.dependencies]
 # Internal crates
-latchgate-core      = { path = "crates/latchgate-core", version = "0.2.0-rc.2" }
-latchgate-crypto    = { path = "crates/latchgate-crypto", version = "0.2.0-rc.2" }
-latchgate-config    = { path = "crates/latchgate-config", version = "0.2.0-rc.2" }
-latchgate-client    = { path = "crates/latchgate-client", version = "0.2.0-rc.2" }
-latchgate-tui       = { path = "crates/latchgate-tui", version = "0.2.0-rc.2" }
-latchgate-auth      = { path = "crates/latchgate-auth", version = "0.2.0-rc.2" }
-latchgate-registry  = { path = "crates/latchgate-registry", version = "0.2.0-rc.2" }
-latchgate-policy    = { path = "crates/latchgate-policy", version = "0.2.0-rc.2" }
-latchgate-state     = { path = "crates/latchgate-state", version = "0.2.0-rc.2" }
-latchgate-providers = { path = "crates/latchgate-providers", version = "0.2.0-rc.2" }
-latchgate-ledger    = { path = "crates/latchgate-ledger", version = "0.2.0-rc.2" }
-latchgate-kernel    = { path = "crates/latchgate-kernel", version = "0.2.0-rc.2" }
-latchgate-api       = { path = "crates/latchgate-api", version = "0.2.0-rc.2" }
-latchgate-embed     = { path = "crates/latchgate-embed", version = "0.2.0-rc.2" }
-latchgate-cli       = { path = "crates/latchgate-cli", version = "0.2.0-rc.2" }
-latchgate-mcp       = { path = "crates/latchgate-mcp", version = "0.2.0-rc.2" }
-latchgate-webhooks  = { path = "crates/latchgate-webhooks", version = "0.2.0-rc.2" }
-latchgate-sandbox   = { path = "crates/latchgate-sandbox", version = "0.2.0-rc.2" }
+latchgate-core      = { path = "crates/latchgate-core", version = "0.2.0" }
+latchgate-crypto    = { path = "crates/latchgate-crypto", version = "0.2.0" }
+latchgate-config    = { path = "crates/latchgate-config", version = "0.2.0" }
+latchgate-client    = { path = "crates/latchgate-client", version = "0.2.0" }
+latchgate-tui       = { path = "crates/latchgate-tui", version = "0.2.0" }
+latchgate-auth      = { path = "crates/latchgate-auth", version = "0.2.0" }
+latchgate-registry  = { path = "crates/latchgate-registry", version = "0.2.0" }
+latchgate-policy    = { path = "crates/latchgate-policy", version = "0.2.0" }
+latchgate-state     = { path = "crates/latchgate-state", version = "0.2.0" }
+latchgate-providers = { path = "crates/latchgate-providers", version = "0.2.0" }
+latchgate-ledger    = { path = "crates/latchgate-ledger", version = "0.2.0" }
+latchgate-kernel    = { path = "crates/latchgate-kernel", version = "0.2.0" }
+latchgate-api       = { path = "crates/latchgate-api", version = "0.2.0" }
+latchgate-embed     = { path = "crates/latchgate-embed", version = "0.2.0" }
+latchgate-cli       = { path = "crates/latchgate-cli", version = "0.2.0" }
+latchgate-mcp       = { path = "crates/latchgate-mcp", version = "0.2.0" }
+latchgate-webhooks  = { path = "crates/latchgate-webhooks", version = "0.2.0" }
+latchgate-sandbox   = { path = "crates/latchgate-sandbox", version = "0.2.0" }
 
 # Async & HTTP
 axum       = "0.8"
