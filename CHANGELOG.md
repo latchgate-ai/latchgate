@@ -7,85 +7,75 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.2.0-rc.1] — 2026-07-09
+
+### Added
+
+- **DPoP key cache.** Bounded LRU cache for parsed DPoP verifying keys, integrated into the verification pipeline and threaded through server state. Eliminates redundant JWK parsing on repeated requests from the same operator.
+- **CLI audit output formats.** `latchgate audit` now supports `--format jsonl` and `--format csv` for machine-readable audit log export.
+- **Benchmarks.** New criterion benchmarks for hot-path operations: audit event construction, Ed25519 grant sign + verify, file path glob matching, JSON Schema request validation, lease token issuance, and DPoP P-256 verification with caching.
+- **CodSpeed integration.** Continuous benchmark regression detection in CI, with pinned action commit hash for supply-chain integrity.
+- **Python SDK golden vector tests.** Parameterized JCS (RFC 8785) golden vector tests for the Python SDK.
+
+### Changed
+
+- **DPoP verification uses `ring`.** P-256 signature verification in the DPoP path switched from `p256`/`ecdsa` to `ring` for lower-latency verification.
+
+### Fixed
+
+- Upgraded `object_store` to 0.14, suppressed `quick-xml` CVEs, fixed SDK dependency vulnerabilities.
+- Corrected docs link to the security model.
+- `tmpdir` cleanup trap in `install.sh`.
+- Updated embedded minisign pubkey in `install.sh` to match rotated release key.
+- NPM_TOKEN auth for npm publish step in release workflow.
+- CI: restored target dir ownership after provider build.
+
+### Security
+
+- Removed redundant `cargo audit` CI job; `cargo deny check` already covers advisories.
+
+### Dependencies
+
+- `lru` 0.16.4 → 0.18.0.
+- Alpine 3.20/3.23 → 3.24 (main and squid container images).
+- `openpolicyagent/opa` 1.17.0 → 1.17.1.
+- `github/codeql-action` 4.35.1 → 4.36.2.
+- `taiki-e/install-action` 2.81.3 → 2.81.6.
+- Minor Rust dependency patches (rust-minor-patch group).
+
 ## [0.1.4] — 2026-06-06
 
 ### Fixed
 
-- Cross-compilation for `aarch64-unknown-linux-gnu`: the default cross 0.2.5
-  Docker image ships Ubuntu 16.04 (glibc 2.23), which lacks `memfd_create`
-  (added in glibc 2.27). `Cross.toml` now overrides the container image to
-  `:main` (Ubuntu 20.04 / glibc 2.31).
+- Cross-compilation for `aarch64-unknown-linux-gnu`: the default cross 0.2.5 Docker image ships Ubuntu 16.04 (glibc 2.23), which lacks `memfd_create` (added in glibc 2.27). `Cross.toml` now overrides the container image to `:main` (Ubuntu 20.04 / glibc 2.31).
 
 ### Changed
 
-- **wasmtime 36 => 45, wasmtime-wasi 36 => 45** — zero source changes in
-  `crates/`; the wasmtime p2 API surface (`WasiView`, `HasData`, `bindgen!`,
-  `ResourceTable`, `Store`/`Config`/`fuel`/`epoch`, `Trap` downcast) was fully
-  backward-compatible across all 9 major versions. Removed deprecated
-  `Config::async_support()` (no-op in wasmtime 45). Fixed two new clippy lints
-  from rustc 1.93 (`expect_used` in json.rs, `cloned_ref_to_slice_refs` in
-  sandbox.rs). MSRV bumped from 1.88 to 1.93 across `rust-toolchain.toml`,
-  `Cargo.toml`, Dockerfile, CI workflows, Makefile, and
-  `deploy/pin-digests.sh`. Re-pinned all Docker image digests for supply-chain
-  integrity.
-- **lapin 3.x => 4.x** — replaced `deadpool-lapin` with a direct
-  `deadpool::managed::Manager` implementation in the new `amqp_pool` module,
-  matching what `deadpool-lapin` did internally (`deadpool-lapin` has no
-  lapin 4.x-compatible release). Adapted `basic_publish` args for lapin 4.x
-  `ShortString` protocol types. Switched
-  `lapin::publisher_confirm::Confirmation` => `lapin::Confirmation` (module
-  made private in 4.x).
+- **wasmtime 36 => 45, wasmtime-wasi 36 => 45** — zero source changes in `crates/`; the wasmtime p2 API surface (`WasiView`, `HasData`, `bindgen!`, `ResourceTable`, `Store`/`Config`/`fuel`/`epoch`, `Trap` downcast) was fully backward-compatible across all 9 major versions. Removed deprecated `Config::async_support()` (no-op in wasmtime 45). Fixed two new clippy lints from rustc 1.93 (`expect_used` in json.rs, `cloned_ref_to_slice_refs` in sandbox.rs). MSRV bumped from 1.88 to 1.93 across `rust-toolchain.toml`, `Cargo.toml`, Dockerfile, CI workflows, Makefile, and `deploy/pin-digests.sh`. Re-pinned all Docker image digests for supply-chain integrity.
+- **lapin 3.x => 4.x** — replaced `deadpool-lapin` with a direct `deadpool::managed::Manager` implementation in the new `amqp_pool` module, matching what `deadpool-lapin` did internally (`deadpool-lapin` has no lapin 4.x-compatible release). Adapted `basic_publish` args for lapin 4.x `ShortString` protocol types. Switched `lapin::publisher_confirm::Confirmation` => `lapin::Confirmation` (module made private in 4.x).
 
 ### Security
 
-- Resolved RUSTSEC-2025-0057 (fxhash, unmaintained transitive dep via
-  fxprof-processed-profile) and eliminated the cap-rand =0.8.5 pin that
-  triggered GHSA-h395-gr6q-cpjc. Picks up 9 months of wasmtime security
-  patches (37–45).
-- Resolved RUSTSEC-2024-0384 (instant via lapin async-io 1.x chain), already
-  resolved by the lapin 3.0 upgrade.
-- RUSTSEC-2025-0134 suppression and `nom 7` skip retained in `deny.toml` with
-  corrected dependency chain comments; stale `windows-sys 0.59` skip removed.
-- Workspace `rand` stays at 0.8 (ed25519-dalek 2.x / p256 0.13 require
-  rand_core 0.6); wasmtime 45 pulls rand 0.10 as a separate transitive dep
-  tree.
+- Resolved RUSTSEC-2025-0057 (fxhash, unmaintained transitive dep via fxprof-processed-profile) and eliminated the cap-rand =0.8.5 pin that triggered GHSA-h395-gr6q-cpjc. Picks up 9 months of wasmtime security patches (37–45).
+- Resolved RUSTSEC-2024-0384 (instant via lapin async-io 1.x chain), already resolved by the lapin 3.0 upgrade.
+- RUSTSEC-2025-0134 suppression and `nom 7` skip retained in `deny.toml` with corrected dependency chain comments; stale `windows-sys 0.59` skip removed.
+- Workspace `rand` stays at 0.8 (ed25519-dalek 2.x / p256 0.13 require rand_core 0.6); wasmtime 45 pulls rand 0.10 as a separate transitive dep tree.
 
 ## [0.1.3] — 2026-06-06
 
 ### Fixed
 
-- Cross-compilation for `aarch64-unknown-linux-gnu`: the 0.1.1 fix installed
-  `clang` in the Cross container but did not account for Cross overriding the
-  linker to `aarch64-linux-gnu-gcc` via environment variable, which rejects the
-  `-fuse-ld=lld` flag from `.cargo/config.toml`. The release workflow now strips
-  the conflicting target section before cross builds; `Cross.toml` additionally
-  installs `lld` for completeness.
-- SBOM generation on virtual workspace: `cargo cyclonedx --top-level` produces
-  no output when the workspace root has no `[package]` section. Changed to
-  `--manifest-path crates/latchgate-bin/Cargo.toml` to target the shipped
-  binary, capturing the full transitive dependency tree.
-- OpenSSF Scorecard workflow: updated `github/codeql-action/upload-sarif` from
-  a v3 pin (imposter commit `b22c662…` rejected by the scorecard webapp) to
-  v4.35.1 (`c10b806…`).
-- Dead code warning on aarch64: `BPF_JGE` constant gated with
-  `#[cfg(target_arch = "x86_64")]` to match its only usage site (x32 ABI
-  guard in seccomp filter).
-- Release workflow TOML parser: the v0.1.2 regex-based `.cargo/config.toml`
-  section stripper stopped at `[` inside a `rustflags` array literal, corrupting
-  the file. Replaced with a line-by-line parser that distinguishes TOML section
-  headers from inline arrays.
+- Cross-compilation for `aarch64-unknown-linux-gnu`: the 0.1.1 fix installed `clang` in the Cross container but did not account for Cross overriding the linker to `aarch64-linux-gnu-gcc` via environment variable, which rejects the `-fuse-ld=lld` flag from `.cargo/config.toml`. The release workflow now strips the conflicting target section before cross builds; `Cross.toml` additionally installs `lld` for completeness.
+- SBOM generation on virtual workspace: `cargo cyclonedx --top-level` produces no output when the workspace root has no `[package]` section. Changed to `--manifest-path crates/latchgate-bin/Cargo.toml` to target the shipped binary, capturing the full transitive dependency tree.
+- OpenSSF Scorecard workflow: updated `github/codeql-action/upload-sarif` from a v3 pin (imposter commit `b22c662…` rejected by the scorecard webapp) to v4.35.1 (`c10b806…`).
+- Dead code warning on aarch64: `BPF_JGE` constant gated with `#[cfg(target_arch = "x86_64")]` to match its only usage site (x32 ABI guard in seccomp filter).
+- Release workflow TOML parser: the v0.1.2 regex-based `.cargo/config.toml` section stripper stopped at `[` inside a `rustflags` array literal, corrupting the file. Replaced with a line-by-line parser that distinguishes TOML section headers from inline arrays.
 
 ### Improved
 
-- OpenSSF Scorecard — Token-Permissions: top-level workflow permissions in
-  `release.yml` narrowed to `contents: read`; `id-token: write`,
-  `attestations: write`, and `packages: write` pushed to job-level only where
-  required.
-- OpenSSF Scorecard — SAST: added CodeQL analysis workflow
-  (`.github/workflows/codeql.yml`) scanning on push, PR, and weekly schedule.
-- OpenSSF Scorecard — Pinned-Dependencies: `curl | python3` patterns in the
-  crate-age and PyPI-age checks rewritten to download to a temp file first,
-  avoiding the `downloadThenRun` flag.
+- OpenSSF Scorecard — Token-Permissions: top-level workflow permissions in `release.yml` narrowed to `contents: read`; `id-token: write`, `attestations: write`, and `packages: write` pushed to job-level only where required.
+- OpenSSF Scorecard — SAST: added CodeQL analysis workflow (`.github/workflows/codeql.yml`) scanning on push, PR, and weekly schedule.
+- OpenSSF Scorecard — Pinned-Dependencies: `curl | python3` patterns in the crate-age and PyPI-age checks rewritten to download to a temp file first, avoiding the `downloadThenRun` flag.
 
 ## [0.1.2] — 2026-06-05 [YANKED]
 
@@ -96,21 +86,14 @@ produced invalid TOML. Superseded by v0.1.3.
 
 ### Fixed
 
-- Cross-platform `O_PATH` handling: macOS builds failed because `libc::O_PATH`
-  is Linux-only. Introduced a platform-conditional constant that falls back to
-  `O_RDONLY` on non-Linux targets, preserving the same security invariants
-  (`O_DIRECTORY`, `O_NOFOLLOW`, `O_CLOEXEC` are enforced on all platforms).
-- Cross-compilation for `aarch64-unknown-linux-gnu`: added `Cross.toml` to
-  install `clang` in the cross container.
-- SBOM generation: replaced removed `--output-file` flag in `cargo-cyclonedx`
-  with `--top-level` and deterministic rename.
+- Cross-platform `O_PATH` handling: macOS builds failed because `libc::O_PATH` is Linux-only. Introduced a platform-conditional constant that falls back to `O_RDONLY` on non-Linux targets, preserving the same security invariants (`O_DIRECTORY`, `O_NOFOLLOW`, `O_CLOEXEC` are enforced on all platforms).
+- Cross-compilation for `aarch64-unknown-linux-gnu`: added `Cross.toml` to install `clang` in the cross container.
+- SBOM generation: replaced removed `--output-file` flag in `cargo-cyclonedx` with `--top-level` and deterministic rename.
 - OpenSSF Scorecard workflow: corrected `ossf/scorecard-action` commit hash.
 
 ### Added
 
-- Minisign signing of release artifacts and `install.sh` in the release
-  pipeline; `install.sh` now verifies signatures and fails closed when
-  `minisign` is absent (bypassable with `LATCHGATE_SKIP_SIGNATURE_CHECK=1`).
+- Minisign signing of release artifacts and `install.sh` in the release pipeline; `install.sh` now verifies signatures and fails closed when `minisign` is absent (bypassable with `LATCHGATE_SKIP_SIGNATURE_CHECK=1`).
 - npm trusted publishing via OIDC (replaces `NPM_TOKEN`).
 
 ## [0.1.0] — 2026-06-01
@@ -134,213 +117,109 @@ scaffolding in-tree and will ship in later versions.
 
 ### Enforcement pipeline (`latchgate-kernel`)
 
-- Single fail-closed request pipeline; every protected action follows the
-  same path or it does not execute. The default decision is deny.
-- Ordered stages: pre-auth rate limiting => lease + DPoP authentication =>
-  replay/revocation check => action resolution + module-digest verification =>
-  canonicalization + `request_hash` => JSON Schema validation => sink/domain/path
-  pre-checks => OPA policy evaluation => approval hold (if required) => atomic
-  budget reserve => Ed25519 grant issuance => pre-dispatch intent write +
-  one-shot grant consumption (single transaction) => WASM dispatch => response
-  schema validation => effect verification => signed receipt + ledger write.
-- **One-shot execution.** The grant is marked consumed in the same SQLite
-  transaction (`BEGIN IMMEDIATE`) as the pre-dispatch intent write, before
-  dispatch. A crash, retry, or concurrent request reusing the grant is denied
-  — non-idempotent side effects never run twice.
-- **Crash recovery.** Pre-dispatch `ExecutionIntent` records detect
-  "dispatched but no receipt" states; outcome markers prevent re-claim of
-  approvals after partial completion failure.
-- **Pre-auth rate limiting.** Bounds CPU cost of DPoP verification, OPA
-  evaluation, and WASM instantiation before any cryptographic work; 429
-  responses carry `Retry-After`.
-- **Drain guard.** Graceful shutdown rejects new work with 503 (retry) rather
-  than dropping in-flight evidence.
-- Effect verification per action: `http_status` (HTTP response assertions) and
-  `fs_hash` (filesystem content digest).
-- **Host-observed effects.** During provider I/O, the host independently
-  records transport-layer observations (HTTP status, response body hash,
-  filesystem content digest). The verifier cross-checks these against the
-  provider's self-reported output — a compromised WASM module cannot lie about
-  what happened.
-- **Template resolution** for parametrised HTTP actions: `{{variable}}`
-  placeholders resolved from the schema-validated request body, percent-encoded
-  to prevent path injection, fail-closed on unknown variables. Runs inside the
-  kernel before WASM dispatch — the provider never sees raw template strings.
-- Structured error responses expose a machine-readable `error` code and never
-  leak internal detail (paths, OPA rule names, module digests); policy denials
-  additionally surface a `deny_reason` for diagnostics.
+- Single fail-closed request pipeline; every protected action follows the same path or it does not execute. The default decision is deny.
+- Ordered stages: pre-auth rate limiting => lease + DPoP authentication => replay/revocation check => action resolution + module-digest verification => canonicalization + `request_hash` => JSON Schema validation => sink/domain/path pre-checks => OPA policy evaluation => approval hold (if required) => atomic budget reserve => Ed25519 grant issuance => pre-dispatch intent write + one-shot grant consumption (single transaction) => WASM dispatch => response schema validation => effect verification => signed receipt + ledger write.
+- **One-shot execution.** The grant is marked consumed in the same SQLite transaction (`BEGIN IMMEDIATE`) as the pre-dispatch intent write, before dispatch. A crash, retry, or concurrent request reusing the grant is denied — non-idempotent side effects never run twice.
+- **Crash recovery.** Pre-dispatch `ExecutionIntent` records detect "dispatched but no receipt" states; outcome markers prevent re-claim of approvals after partial completion failure.
+- **Pre-auth rate limiting.** Bounds CPU cost of DPoP verification, OPA evaluation, and WASM instantiation before any cryptographic work; 429 responses carry `Retry-After`.
+- **Drain guard.** Graceful shutdown rejects new work with 503 (retry) rather than dropping in-flight evidence.
+- Effect verification per action: `http_status` (HTTP response assertions) and `fs_hash` (filesystem content digest).
+- **Host-observed effects.** During provider I/O, the host independently records transport-layer observations (HTTP status, response body hash, filesystem content digest). The verifier cross-checks these against the provider's self-reported output — a compromised WASM module cannot lie about what happened.
+- **Template resolution** for parametrised HTTP actions: `{{variable}}` placeholders resolved from the schema-validated request body, percent-encoded to prevent path injection, fail-closed on unknown variables. Runs inside the kernel before WASM dispatch — the provider never sees raw template strings.
+- Structured error responses expose a machine-readable `error` code and never leak internal detail (paths, OPA rule names, module digests); policy denials additionally surface a `deny_reason` for diagnostics.
 
 ### Security hardening
 
-- `#![deny(unsafe_code)]` on every crate except `latchgate-sandbox`, where
-  syscall-level isolation requires it; that crate enforces
-  `#![deny(clippy::undocumented_unsafe_blocks)]`.
-- `#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]` on
-  the security-critical crates (core, crypto, auth, kernel, policy, api,
-  sandbox): a naked `unwrap`/`expect` outside tests is a compile error.
-  `panic = "abort"` in the release profile.
-- Secrets wrapped in `Zeroizing` at the host transport boundary; never placed
-  in the WASM sandbox or model context.
-- **Explicit insecurity.** Any deviation from secure defaults requires an
-  `unsafe_` flag visible in config and the audit trail. Production startup
-  rejects dev-mode identity, ephemeral keys, and shared operator credentials,
-  and requires `dpop_jkt` on every operator credential.
+- `#![deny(unsafe_code)]` on every crate except `latchgate-sandbox`, where syscall-level isolation requires it; that crate enforces `#![deny(clippy::undocumented_unsafe_blocks)]`.
+- `#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]` on the security-critical crates (core, crypto, auth, kernel, policy, api, sandbox): a naked `unwrap`/`expect` outside tests is a compile error. `panic = "abort"` in the release profile.
+- Secrets wrapped in `Zeroizing` at the host transport boundary; never placed in the WASM sandbox or model context.
+- **Explicit insecurity.** Any deviation from secure defaults requires an `unsafe_` flag visible in config and the audit trail. Production startup rejects dev-mode identity, ephemeral keys, and shared operator credentials, and requires `dpop_jkt` on every operator credential.
 - Constant-time comparison for tokens and signatures.
-- **Input sanitization** at every untrusted boundary: control characters
-  (U+0000–U+001F, U+007F, C1 range) replaced with spaces, length-capped in
-  bytes with UTF-8-safe truncation. Prevents newline/ANSI injection in logs,
-  audit events, metrics labels, and HTTP responses.
-- **Path containment.** Symlink-aware canonicalization rejects paths that
-  escape the merge root — a manifest in `manifests/` cannot resolve to
-  `/etc/shadow` via a symlink.
-- **Security constants.** Config fields whose only safe value is the default
-  (`replay_ttl`, `opa_timeout`, `max_lease_lifetime`) promoted to compile-time
-  constants, removing misconfiguration surface.
+- **Input sanitization** at every untrusted boundary: control characters (U+0000–U+001F, U+007F, C1 range) replaced with spaces, length-capped in bytes with UTF-8-safe truncation. Prevents newline/ANSI injection in logs, audit events, metrics labels, and HTTP responses.
+- **Path containment.** Symlink-aware canonicalization rejects paths that escape the merge root — a manifest in `manifests/` cannot resolve to `/etc/shadow` via a symlink.
+- **Security constants.** Config fields whose only safe value is the default (`replay_ttl`, `opa_timeout`, `max_lease_lifetime`) promoted to compile-time constants, removing misconfiguration surface.
 
 ### Authentication (`latchgate-auth`)
 
-- DPoP sender-constrained proofs (RFC 9449): `htu`/`htm` binding, `ath`
-  access-token binding, `jkt` thumbprint, ES256 / P-256.
-- ES256-signed lease JWTs scoped per agent with call and cost ceilings; sender-bound to the
-  DPoP key.
+- DPoP sender-constrained proofs (RFC 9449): `htu`/`htm` binding, `ath` access-token binding, `jkt` thumbprint, ES256 / P-256.
+- ES256-signed lease JWTs scoped per agent with call and cost ceilings; sender-bound to the DPoP key.
 - Replay cache with `jti` tracking; fail-closed when the cache is unreachable.
-- Revocation epoch kill-switch: bump the epoch to invalidate all outstanding
-  leases and grants at once.
+- Revocation epoch kill-switch: bump the epoch to invalidate all outstanding leases and grants at once.
 
 ### Cryptography & evidence (`latchgate-crypto`, `latchgate-ledger`)
 
 - Ed25519 signing/verification with key rotation; SHA-256 throughout.
-- Append-only, hash-chained SQLite ledger. Every decision — allow, deny,
-  approval, error — is recorded and Ed25519-signed. Modifying or deleting any
-  entry breaks the chain from that point forward (verified by standalone
-  tamper-detection tests).
-- WAL journaling, busy timeout, and `locking_mode = EXCLUSIVE` for the
-  forensic store; transactional receipt finalization (receipt and audit commit
-  together or not at all).
+- Append-only, hash-chained SQLite ledger. Every decision — allow, deny, approval, error — is recorded and Ed25519-signed. Modifying or deleting any entry breaks the chain from that point forward (verified by standalone tamper-detection tests).
+- WAL journaling, busy timeout, and `locking_mode = EXCLUSIVE` for the forensic store; transactional receipt finalization (receipt and audit commit together or not at all).
 
 ### Configuration (`latchgate-config`)
 
-- Layered config: file, environment, and CLI flags with strict precedence;
-  boolean env parsing rejects ambiguous values.
-- Auto-discovery of config and operator credentials; single-credential dev
-  mode needs no flags.
-- Dev-mode auto-detection from the source tree (`definitions/manifests/`,
-  `definitions/policies/opa/`, `target/providers/`).
-- Eleven security presets: `agent`, `blank`, `coding`, `data`, `devops`,
-  `lockdown`, `ops`, `permissive`, `quickstart`, `read-only`, `team`.
+- Layered config: file, environment, and CLI flags with strict precedence; boolean env parsing rejects ambiguous values.
+- Auto-discovery of config and operator credentials; single-credential dev mode needs no flags.
+- Dev-mode auto-detection from the source tree (`definitions/manifests/`, `definitions/policies/opa/`, `target/providers/`).
+- Eleven security presets: `agent`, `blank`, `coding`, `data`, `devops`, `lockdown`, `ops`, `permissive`, `quickstart`, `read-only`, `team`.
 
 ### Registry & manifests (`latchgate-registry`)
 
 - 87 action manifests across four risk tiers (low / medium / high / critical).
-- `provider_module_digest` accepts `sha256:<hex>` (WASM modules, verified at
-  load) or `builtin:<name>` (providers compiled into the server binary).
-- Per-action declarations: input/output JSON Schemas, egress domain
-  allowlists, filesystem path scopes, risk level, and verifier kind.
+- `provider_module_digest` accepts `sha256:<hex>` (WASM modules, verified at load) or `builtin:<name>` (providers compiled into the server binary).
+- Per-action declarations: input/output JSON Schemas, egress domain allowlists, filesystem path scopes, risk level, and verifier kind.
 
 ### Policy (`latchgate-policy`)
 
-- OPA / Rego evaluation outside the model's influence; fail-closed (OPA
-  unreachable => deny).
-- Decisions: allow, deny, or pending-approval, with per-decision egress and
-  secret approvals.
+- OPA / Rego evaluation outside the model's influence; fail-closed (OPA unreachable => deny).
+- Decisions: allow, deny, or pending-approval, with per-decision egress and secret approvals.
 - `latchgate.rego` policy plus a Rego test suite (`test_latchgate.rego`).
-- **Approval-bypass allowlist.** Per-(action, principal) entries that skip the
-  approval hold while all deny rules (trust, ACL, scope, budget, sink) still
-  apply unconditionally. Managed via admin API and audited in the ledger.
-- JCS (RFC 8785) canonicalization with SHA-256 hashing; I-JSON subset
-  validation and size/depth DoS limits enforced before hashing.
+- **Approval-bypass allowlist.** Per-(action, principal) entries that skip the approval hold while all deny rules (trust, ACL, scope, budget, sink) still apply unconditionally. Managed via admin API and audited in the ledger.
+- JCS (RFC 8785) canonicalization with SHA-256 hashing; I-JSON subset validation and size/depth DoS limits enforced before hashing.
 
 ### Budgets & approvals (`latchgate-state`)
 
-- Per-session call and cost ceilings, atomically reserved and debited
-  (Redis-backed); exhaustion denies. Rollback on post-debit failure.
-- High-risk actions block until a human approves; the kernel stores an
-  immutable execution plan and issues no grant until then. Plan-integrity
-  checks reject any request mutation between approval and execution.
-- **Approval expiry scanner.** Background task polls pending approvals and
-  emits `approval.expired` domain events for webhook/notification delivery.
-  Duplicate-safe via seen-set; non-fatal errors logged, never propagated.
+- Per-session call and cost ceilings, atomically reserved and debited (Redis-backed); exhaustion denies. Rollback on post-debit failure.
+- High-risk actions block until a human approves; the kernel stores an immutable execution plan and issues no grant until then. Plan-integrity checks reject any request mutation between approval and execution.
+- **Approval expiry scanner.** Background task polls pending approvals and emits `approval.expired` domain events for webhook/notification delivery. Duplicate-safe via seen-set; non-fatal errors logged, never propagated.
 
 ### Providers (`latchgate-providers`, `providers/`)
 
-- WASM providers run with no filesystem and no network access; only clocks and
-  randomness are available. One fresh sandbox instance per call.
-- Built-in providers: `http_api` and `fs`. Each WASM module is SHA-256-pinned
-  and verified before instantiation.
-- **HTTP transport defenses:** port 443 only; `https`/`http` schemes only
-  (`file:`, `gopher:`, `ftp:`, `data:` rejected); DNS resolved once and pinned
-  for the connection (closes the rebinding TOCTOU window); private/internal IP
-  ranges rejected after resolution; per-action domain allowlists validated
-  before dispatch.
-- **Filesystem path enforcement.** Glob-based allowlists and denylists
-  evaluated at the host I/O boundary; deny overrides allow. Shared evaluation
-  between host import validation and OPA policy.
-- Per-execution I/O call budgets enforced at the host boundary; exceeded
-  budgets terminate the sandbox.
-- **Runtime domain/path learning.** Operators can approve egress domains and
-  filesystem path globs at runtime. Learned entries are per-action, additive
-  only (manifest entries are immutable), and fail-closed to the manifest
-  baseline on error.
-- WIT host interfaces defined for current and forthcoming providers:
-  `io-http`, `io-fs`, `io-database`, `io-queue`, `io-smtp`, `io-storage`,
-  `io-log`, and the `provider` world.
+- WASM providers run with no filesystem and no network access; only clocks and randomness are available. One fresh sandbox instance per call.
+- Built-in providers: `http_api` and `fs`. Each WASM module is SHA-256-pinned and verified before instantiation.
+- **HTTP transport defenses:** port 443 only; `https`/`http` schemes only (`file:`, `gopher:`, `ftp:`, `data:` rejected); DNS resolved once and pinned for the connection (closes the rebinding TOCTOU window); private/internal IP ranges rejected after resolution; per-action domain allowlists validated before dispatch.
+- **Filesystem path enforcement.** Glob-based allowlists and denylists evaluated at the host I/O boundary; deny overrides allow. Shared evaluation between host import validation and OPA policy.
+- Per-execution I/O call budgets enforced at the host boundary; exceeded budgets terminate the sandbox.
+- **Runtime domain/path learning.** Operators can approve egress domains and filesystem path globs at runtime. Learned entries are per-action, additive only (manifest entries are immutable), and fail-closed to the manifest baseline on error.
+- WIT host interfaces defined for current and forthcoming providers: `io-http`, `io-fs`, `io-database`, `io-queue`, `io-smtp`, `io-storage`, `io-log`, and the `provider` world.
 
 ### Webhooks (`latchgate-webhooks`)
 
 - Push events to Slack, Teams, PagerDuty, or any HTTPS endpoint.
-- HMAC-SHA256 signed, asynchronous delivery with retry and a dead-letter
-  queue (outbox pattern).
+- HMAC-SHA256 signed, asynchronous delivery with retry and a dead-letter queue (outbox pattern).
 
 ### Agent process sandbox (`latchgate-sandbox`)
 
-- Runs the agent inside Linux namespaces — user, network, mount, PID, UTS,
-  IPC, cgroup, time (`CLONE_NEW*`) — with seccomp-BPF and
-  `pivot_root`. Requires Linux ≥ 5.8 with unprivileged user namespaces.
-- The agent sees an empty filesystem and no network interfaces; only two exits
-  exist: the gate UDS and an HTTPS CONNECT proxy.
-- Egress proxy accepts CONNECT to allowlisted hosts on port 443 only;
-  everything else is refused at the network boundary.
+- Runs the agent inside Linux namespaces — user, network, mount, PID, UTS, IPC, cgroup, time (`CLONE_NEW*`) — with seccomp-BPF and `pivot_root`. Requires Linux ≥ 5.8 with unprivileged user namespaces.
+- The agent sees an empty filesystem and no network interfaces; only two exits exist: the gate UDS and an HTTPS CONNECT proxy.
+- Egress proxy accepts CONNECT to allowlisted hosts on port 443 only; everything else is refused at the network boundary.
 
 ### HTTP API (`latchgate-api`)
 
 - Unix domain socket transport (production) and HTTP (dev mode).
-- `/healthz` liveness probe; `/readyz` readiness probe (checks Redis, OPA,
-  ledger, approval store, egress proxy, action count; returns
-  `ready`/`degraded`/`not_ready`).
+- `/healthz` liveness probe; `/readyz` readiness probe (checks Redis, OPA, ledger, approval store, egress proxy, action count; returns `ready`/`degraded`/`not_ready`).
 - `/.well-known/jwks.json` — public key discovery for lease JWT verification.
 - `/metrics` — Prometheus text exposition format (operator-authenticated).
-- `/v1/receipts/{id}` — receipt retrieval on both the admin socket
-  (operator DPoP) and the client socket (lease DPoP).
+- `/v1/receipts/{id}` — receipt retrieval on both the admin socket (operator DPoP) and the client socket (lease DPoP).
 - `/v1/receipt-keys` — receipt signing public keys for offline verification.
-- `/v1/actions/{id}/schema/request` — request JSON Schema retrieval for
-  client-side validation.
-- Admin CRUD endpoints for runtime resource management:
-  `/v1/admin/domains` (list, add, remove, clear),
-  `/v1/admin/paths` (list, add, remove, clear),
-  `/v1/admin/policy/allowlist` (add, remove approval-bypass entries),
-  `/v1/admin/policy` (show ACL, per-principal detail, grant, revoke),
-  `/v1/admin/reload` (hot-reload config and manifests),
-  `/v1/admin/drain` (graceful drain), `/v1/admin/status`, `/v1/admin/epoch`.
-- **Domain event system.** Security-relevant state changes (action allowed,
-  denied, approval pending/approved/denied/expired) emitted as structured
-  events. Webhook, metrics, and audit consumers subscribe independently.
-- Status-code semantics: 401 auth, 403 policy/trust, 409 grant-consumed/
-  conflict, 422 schema, 429 rate-limited, 502 provider, 503 dependency-
-  unavailable/draining. 503 still denies — there is no permissive fallback.
+- `/v1/actions/{id}/schema/request` — request JSON Schema retrieval for client-side validation.
+- Admin CRUD endpoints for runtime resource management: `/v1/admin/domains` (list, add, remove, clear), `/v1/admin/paths` (list, add, remove, clear), `/v1/admin/policy/allowlist` (add, remove approval-bypass entries), `/v1/admin/policy` (show ACL, per-principal detail, grant, revoke), `/v1/admin/reload` (hot-reload config and manifests), `/v1/admin/drain` (graceful drain), `/v1/admin/status`, `/v1/admin/epoch`.
+- **Domain event system.** Security-relevant state changes (action allowed, denied, approval pending/approved/denied/expired) emitted as structured events. Webhook, metrics, and audit consumers subscribe independently.
+- Status-code semantics: 401 auth, 403 policy/trust, 409 grant-consumed/ conflict, 422 schema, 429 rate-limited, 502 provider, 503 dependency- unavailable/draining. 503 still denies — there is no permissive fallback.
 
 ### CLI (`latchgate-cli`, `latchgate` binary)
 
-- `latchgate up` — one-command dev/eval setup; manages Redis, OPA, and the
-  egress proxy via Docker, generates a dev config, and runs the gate. First
-  run launches an interactive setup wizard. `--reset` re-runs the wizard.
-- `latchgate down [--prune] [--yes]` — stop Docker dependencies; `--prune`
-  also deletes the data directory (audit DB, receipts, cache).
-- `latchgate serve` — production server against externally managed
-  infrastructure.
-- `latchgate sandbox [--workspace DIR] [--allow-host H] [--bind PATH] [--env K]
-  -- <cmd>` — launch an agent inside the namespace sandbox.
-- `latchgate doctor` — pre-flight checks (config, Redis, OPA, providers,
-  manifests, secrets, host WASM capabilities); dev-mode aware.
+- `latchgate up` — one-command dev/eval setup; manages Redis, OPA, and the egress proxy via Docker, generates a dev config, and runs the gate. First run launches an interactive setup wizard. `--reset` re-runs the wizard.
+- `latchgate down [--prune] [--yes]` — stop Docker dependencies; `--prune` also deletes the data directory (audit DB, receipts, cache).
+- `latchgate serve` — production server against externally managed infrastructure.
+- `latchgate sandbox [--workspace DIR] [--allow-host H] [--bind PATH] [--env K] -- <cmd>` — launch an agent inside the namespace sandbox.
+- `latchgate doctor` — pre-flight checks (config, Redis, OPA, providers, manifests, secrets, host WASM capabilities); dev-mode aware.
 - `latchgate status` — config, mode, resource counts, dependency health.
 - `latchgate tui` — interactive terminal UI (see below).
 - `latchgate init [--preset NAME]` — scaffold a project non-interactively.
@@ -348,64 +227,40 @@ scaffolding in-tree and will ship in later versions.
 - `latchgate audit` — query the signed ledger (operator-authenticated).
 - `latchgate verify` — offline ledger hash-chain integrity check.
 - `latchgate revoke [--yes]` — bump the revocation epoch (kill-switch).
-- `latchgate approvals {list, show <id>, approve <id> [-y], deny <id>
-  [--reason]}` — operator approval workflow.
-- `latchgate operator keygen [-o PATH]` — generate a DPoP operator keypair
-  (ES256 / P-256).
-- `latchgate config {path, resources, get}` — inspect active config and
-  built-in vs. user resources.
+- `latchgate approvals {list, show <id>, approve <id> [-y], deny <id> [--reason]}` — operator approval workflow.
+- `latchgate operator keygen [-o PATH]` — generate a DPoP operator keypair (ES256 / P-256).
+- `latchgate config {path, resources, get}` — inspect active config and built-in vs. user resources.
 - `latchgate policy {grant, revoke, show}` — manage policy ACLs.
-- `latchgate secrets {init, set, get, list, remove}` — SOPS/age encrypted
-  secret management. `init` generates an age keypair and encrypted secrets
-  file; `set`/`get`/`remove` operate on individual secrets; `list` shows
-  status and which actions require each secret.
-- `latchgate domains {list, add, remove, clear, check}` — manage learned
-  egress domain allowlists. `check` dry-runs a domain against the effective
-  allowlist (manifest + learned) using the same matching logic as the runtime.
-- `latchgate completions {bash, zsh, fish, powershell}` — shell completion
-  script generation.
+- `latchgate secrets {init, set, get, list, remove}` — SOPS/age encrypted secret management. `init` generates an age keypair and encrypted secrets file; `set`/`get`/`remove` operate on individual secrets; `list` shows status and which actions require each secret.
+- `latchgate domains {list, add, remove, clear, check}` — manage learned egress domain allowlists. `check` dry-runs a domain against the effective allowlist (manifest + learned) using the same matching logic as the runtime.
+- `latchgate completions {bash, zsh, fish, powershell}` — shell completion script generation.
 - `latchgate domains {list, add}` — manage the learned egress allowlist.
 - `latchgate secrets {init, set, get, list, remove}` — operator secret store.
 - `latchgate completions <shell>` — shell completion scripts.
-- `--operator-key` / `LATCHGATE_OPERATOR_KEY` and `--operator-private-key` /
-  `LATCHGATE_OPERATOR_PRIVATE_KEY` for authenticated commands; `--json` for
-  scripting and CI.
+- `--operator-key` / `LATCHGATE_OPERATOR_KEY` and `--operator-private-key` / `LATCHGATE_OPERATOR_PRIVATE_KEY` for authenticated commands; `--json` for scripting and CI.
 
 ### Terminal UI (`latchgate-tui`)
 
-- Full-screen operator console (`latchgate tui`) with tabbed navigation
-  (`Tab` / `Shift-Tab`): Dashboard, Activity, Approvals, Actions, Domains,
-  Policy.
-- **Dashboard** — live resource counts, dependency health, throughput
-  sparklines, status cards, and meters.
-- **Approvals** — review pending approvals with full plan detail; single-
-  keypress approve/deny with countdown timers and live polling.
+- Full-screen operator console (`latchgate tui`) with tabbed navigation (`Tab` / `Shift-Tab`): Dashboard, Activity, Approvals, Actions, Domains, Policy.
+- **Dashboard** — live resource counts, dependency health, throughput sparklines, status cards, and meters.
+- **Approvals** — review pending approvals with full plan detail; single- keypress approve/deny with countdown timers and live polling.
 - **Activity** — streaming decision feed (allow/deny/approval/error).
 - **Actions** — registered action inventory with digest status.
 - **Domains** — learned egress allowlist management.
 - **Policy** — policy ACL inspection.
-- Interactive setup wizard (shared with `latchgate up` first-run), in-app
-  config editing, and editor suspend/resume.
+- Interactive setup wizard (shared with `latchgate up` first-run), in-app config editing, and editor suspend/resume.
 
 ### MCP adapter (`latchgate-mcp`, `latchgate-mcp` binary)
 
-- Bridges MCP-speaking agents to LatchGate over stdio JSON-RPC 2.0
-  (MCP 2024-11-05).
-- `latchgate-mcp install --ide <cursor|claude|cline|windsurf|codex>` — one-command
-  IDE configuration.
-- `tools/list` exposes registered actions as MCP tools with `inputSchema`;
-  `tools/call` constructs a per-request DPoP proof and maps gate responses.
-- UDS transport (default) and TCP/HTTP transport (dev); DPoP + lease lifecycle
-  with automatic renewal.
+- Bridges MCP-speaking agents to LatchGate over stdio JSON-RPC 2.0 (MCP 2024-11-05).
+- `latchgate-mcp install --ide <cursor|claude|cline|windsurf|codex>` — one-command IDE configuration.
+- `tools/list` exposes registered actions as MCP tools with `inputSchema`; `tools/call` constructs a per-request DPoP proof and maps gate responses.
+- UDS transport (default) and TCP/HTTP transport (dev); DPoP + lease lifecycle with automatic renewal.
 
 ### SDKs
 
-- **Python 3.10+** (`pip install latchgate`) — async client with lazy-connect,
-  `LATCHGATE_URL` support, automatic DPoP proof construction, typed results and
-  exceptions (denied, approval-required, budget-exhausted, lease-expired,
-  replay-detected, unavailable).
-- **TypeScript / Node 18+** (`npm install latchgate`) — equivalent async
-  client.
+- **Python 3.10+** (`pip install latchgate`) — async client with lazy-connect, `LATCHGATE_URL` support, automatic DPoP proof construction, typed results and exceptions (denied, approval-required, budget-exhausted, lease-expired, replay-detected, unavailable).
+- **TypeScript / Node 18+** (`npm install latchgate`) — equivalent async client.
 
 ### Framework integrations
 
@@ -415,74 +270,42 @@ AI SDK, OpenAI Agents, Pydantic AI.
 
 ### Egress allowlist generation
 
-- Egress allowlists are derived from action manifests — the single source of
-  truth for permitted domains. The `squid-allowlist` Make target and release
-  pipeline generate a Squid `dstdomain` list; `egress_sync` renders and
-  hot-reloads it for the proxy.
-- `egress_runtime_allowlist` config field for operator-controlled domain
-  narrowing that intersects with manifest allowlists at runtime.
+- Egress allowlists are derived from action manifests — the single source of truth for permitted domains. The `squid-allowlist` Make target and release pipeline generate a Squid `dstdomain` list; `egress_sync` renders and hot-reloads it for the proxy.
+- `egress_runtime_allowlist` config field for operator-controlled domain narrowing that intersects with manifest allowlists at runtime.
 
 ### Supply chain & build
 
-- Static musl binary, zero runtime dependencies; `--locked` / `--frozen` on
-  every build.
-- Reproducible release tarballs (`SOURCE_DATE_EPOCH`, sorted tar, `gzip -n`)
-  with per-artifact SHA-256 checksums verified before publish.
-- Reproducible WASM provider modules built in a pinned container
-  (`--remap-path-prefix`); committed digests verified at module load and again
-  at image build.
+- Static musl binary, zero runtime dependencies; `--locked` / `--frozen` on every build.
+- Reproducible release tarballs (`SOURCE_DATE_EPOCH`, sorted tar, `gzip -n`) with per-artifact SHA-256 checksums verified before publish.
+- Reproducible WASM provider modules built in a pinned container (`--remap-path-prefix`); committed digests verified at module load and again at image build.
 - All container base images pinned by SHA-256 digest (Dependabot-managed).
-- SLSA build-provenance and CycloneDX SBOM attestations on every release
-  artifact; PyPI and npm published via OIDC trusted publishing
-  (`--provenance`).
-- CI gate: `cargo fmt --check`, `cargo clippy --lib --bins -D warnings`,
-  unit tests (`cargo test --workspace --lib`), a release-build test-hooks
-  guard, `cargo deny`, and `cargo audit`. The Docker-dependent suites
-  (standalone, integration, conformance) are run locally, not in hosted CI
-  for v0.1.0 — see CONTRIBUTING.md.
+- SLSA build-provenance and CycloneDX SBOM attestations on every release artifact; PyPI and npm published via OIDC trusted publishing (`--provenance`).
+- CI gate: `cargo fmt --check`, `cargo clippy --lib --bins -D warnings`, unit tests (`cargo test --workspace --lib`), a release-build test-hooks guard, `cargo deny`, and `cargo audit`. The Docker-dependent suites (standalone, integration, conformance) are run locally, not in hosted CI for v0.1.0 — see CONTRIBUTING.md.
 
 ### Infrastructure & deployment
 
-- `install.sh` — OS/arch detection, tarball download from GitHub Releases,
-  SHA-256 verification, and shell-completion install.
+- `install.sh` — OS/arch detection, tarball download from GitHub Releases, SHA-256 verification, and shell-completion install.
 - Homebrew tap (`latchgate-ai/tap/latchgate`).
-- Multi-arch Docker images (linux/amd64, linux/arm64): the gate
-  (`ghcr.io/latchgate-ai/latchgate`) and the egress proxy
-  (`ghcr.io/latchgate-ai/latchgate-egress`), running as a non-root user with a
-  healthcheck.
-- `docker-compose.yml` with profiles for Redis, OPA, Squid egress proxy, and
-  Prometheus; `cap_drop` and `security_opt` hardening.
+- Multi-arch Docker images (linux/amd64, linux/arm64): the gate (`ghcr.io/latchgate-ai/latchgate`) and the egress proxy (`ghcr.io/latchgate-ai/latchgate-egress`), running as a non-root user with a healthcheck.
+- `docker-compose.yml` with profiles for Redis, OPA, Squid egress proxy, and Prometheus; `cap_drop` and `security_opt` hardening.
 
 ### Testing & fuzzing
 
-- Six `cargo-fuzz` targets covering security-critical parsers: `canonical_hash`,
-  `domain_allowlist_match`, `ip_classification`, `manifest_domain_entry`,
-  `parse_host_from_url`, `path_glob_match`.
-- Standalone test suites (no external infra): WASM provider isolation, ledger
-  tamper detection (direct SQLite manipulation), receipt key rotation across
-  simulated restarts, WASM conformance against compiled provider modules,
-  webhook delivery, execution-path coverage, compose-port isolation, and
-  manifest coverage (risk consistency, secret declarations, egress profiles,
-  naming conventions, schema compilation, verifier strength gates).
-- Integration test suites (require Docker): end-to-end pipeline through the
-  real HTTP surface, resilience (mid-session backend death, embedded-mode
-  recovery), and evidence-persistence failure (post-dispatch finalization
-  fault injection via test-hooks).
+- Six `cargo-fuzz` targets covering security-critical parsers: `canonical_hash`, `domain_allowlist_match`, `ip_classification`, `manifest_domain_entry`, `parse_host_from_url`, `path_glob_match`.
+- Standalone test suites (no external infra): WASM provider isolation, ledger tamper detection (direct SQLite manipulation), receipt key rotation across simulated restarts, WASM conformance against compiled provider modules, webhook delivery, execution-path coverage, compose-port isolation, and manifest coverage (risk consistency, secret declarations, egress profiles, naming conventions, schema compilation, verifier strength gates).
+- Integration test suites (require Docker): end-to-end pipeline through the real HTTP surface, resilience (mid-session backend death, embedded-mode recovery), and evidence-persistence failure (post-dispatch finalization fault injection via test-hooks).
 
 ### Documentation
 
-- `RISK_MODEL.md` — four-tier risk classification guide with rationale and
-  examples for each level (low, medium, high, critical). Referenced by every
-  manifest's `risk_rationale`.
+- `RISK_MODEL.md` — four-tier risk classification guide with rationale and examples for each level (low, medium, high, critical). Referenced by every manifest's `risk_rationale`.
 - `SECURITY.md` — vulnerability reporting policy.
 - `CONTRIBUTING.md` — development workflow, test commands, and PR checklist.
 
 ### Repo layout
 
-- Source tree reorganized for clarity: `wit/` => `providers/wit/`,
-  `spec/` => `definitions/`, `policies/` => `definitions/policies/`.
-  Install-output layouts (`.latchgate/`, `share/latchgate/`) unchanged.
+- Source tree reorganized for clarity: `wit/` => `providers/wit/`, `spec/` => `definitions/`, `policies/` => `definitions/policies/`. Install-output layouts (`.latchgate/`, `share/latchgate/`) unchanged.
 
+[0.2.0-rc.1]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.2.0-rc.1
 [0.1.4]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.4
 [0.1.3]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.3
 [0.1.2]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.2
