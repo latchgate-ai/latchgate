@@ -13,15 +13,15 @@
 #
 # Owner: platform-security. Review cadence: quarterly or on upstream release.
 ignore = [
-    # review_before: 2026-09-01
-    # Blocker: rustls-pemfile (archived Aug 2025) is still pulled by two chains:
-    #   (1) latchgate-api => rustls-pemfile (direct dep for PEM parsing in mTLS setup)
-    #   (2) lapin => amq-protocol-tcp => tcp-stream => rustls-connector => rustls-pemfile
-    # Migration: replace direct usage with rustls-pki-types PemObject trait;
-    # upstream tcp-stream must drop rustls-connector.
-    # Risk: rustls-pemfile 2.x is a thin wrapper over rustls-pki-types —
-    # no behavioral divergence; no known active exploit; TLS setup path only.
-    { id = "RUSTSEC-2025-0134", reason = "transitive via latchgate-api (direct) and lapin=>tcp-stream=>rustls-connector; archived crate; no known exploit; TLS setup path only" },
+    # review_before: 2026-10-01
+    # Blocker: object_store 0.14 pins quick-xml ^0.40; 0.41 is out of semver
+    # range so Cargo patches cannot override. Awaiting upstream object_store
+    # release with quick-xml ^0.41.
+    # Risk: both CVEs are DoS via attacker-controlled XML. object_store only
+    # parses XML from trusted cloud provider API responses (AWS/GCP/Azure),
+    # not user-supplied input — exploitation requires a compromised provider.
+    { id = "RUSTSEC-2026-0194", reason = "quick-xml DoS (duplicate attrs); only parsed from trusted cloud provider responses; blocked on upstream object_store bump to quick-xml ^0.41" },
+    { id = "RUSTSEC-2026-0195", reason = "quick-xml DoS (unbounded ns alloc); only parsed from trusted cloud provider responses; blocked on upstream object_store bump to quick-xml ^0.41" },
 ]
 
 [licenses]
@@ -144,7 +144,10 @@ skip = [
     # asn1-rs / der-parser => nom 7; lettre => nom 8
     { name = "nom", version = "7" },
 
-    # object_store 0.13 / regorus / wasmtime 45 (via cap-rand) /
+    # ratatui / wasmtime => itertools 0.14 vs object_store 0.14 => itertools 0.15
+    { name = "itertools", version = "0.14" },
+
+    # object_store 0.14 / regorus / wasmtime 45 (via cap-rand) /
     # lapin => tcp-stream => p12-keystore pull rand 0.10 transitively; latchgate pins
     # rand 0.8 (rand_core 0.6 compat with ed25519-dalek 2.x / p256 0.13)
     { name = "rand",       version = "0.10" },

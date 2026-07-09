@@ -66,6 +66,7 @@ pub async fn serve_http(
 pub fn load_admin_tls_config(
     listener: &latchgate_config::ListenerConfig,
 ) -> std::io::Result<std::sync::Arc<rustls::ServerConfig>> {
+    use rustls_pki_types::pem::PemObject;
     use rustls_pki_types::{CertificateDer, PrivateKeyDer};
     use std::io;
     use std::sync::Arc;
@@ -84,7 +85,7 @@ pub fn load_admin_tls_config(
 
     let cert_pem = std::fs::read(cert_path)
         .map_err(|e| io::Error::new(e.kind(), format!("admin_tls_cert ({cert_path}): {e}")))?;
-    let certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut &cert_pem[..])
+    let certs: Vec<CertificateDer<'static>> = CertificateDer::pem_slice_iter(&cert_pem)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| {
             io::Error::new(
@@ -103,25 +104,18 @@ pub fn load_admin_tls_config(
 
     let key_pem = std::fs::read(key_path)
         .map_err(|e| io::Error::new(e.kind(), format!("admin_tls_key ({key_path}): {e}")))?;
-    let key: PrivateKeyDer<'static> = rustls_pemfile::private_key(&mut &key_pem[..])
-        .map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("admin_tls_key ({key_path}): {e}"),
-            )
-        })?
-        .ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("admin_tls_key ({key_path}): no private key found in PEM"),
-            )
-        })?;
+    let key: PrivateKeyDer<'static> = PrivateKeyDer::from_pem_slice(&key_pem).map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("admin_tls_key ({key_path}): {e}"),
+        )
+    })?;
 
     // -- CA certificate for client verification --
 
     let ca_pem = std::fs::read(ca_path)
         .map_err(|e| io::Error::new(e.kind(), format!("admin_tls_ca ({ca_path}): {e}")))?;
-    let ca_certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut &ca_pem[..])
+    let ca_certs: Vec<CertificateDer<'static>> = CertificateDer::pem_slice_iter(&ca_pem)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| {
             io::Error::new(
@@ -1195,10 +1189,11 @@ mod tests {
         client_cert_pem: &[u8],
         client_key_pem: &[u8],
     ) -> rustls::ClientConfig {
+        use rustls_pki_types::pem::PemObject;
         use rustls_pki_types::{CertificateDer, PrivateKeyDer};
         use std::sync::Arc;
 
-        let ca_certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut &ca_pem[..])
+        let ca_certs: Vec<CertificateDer<'static>> = CertificateDer::pem_slice_iter(ca_pem)
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
         let mut root_store = rustls::RootCertStore::empty();
@@ -1207,13 +1202,11 @@ mod tests {
         }
 
         let client_certs: Vec<CertificateDer<'static>> =
-            rustls_pemfile::certs(&mut &client_cert_pem[..])
+            CertificateDer::pem_slice_iter(client_cert_pem)
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
         let client_key: PrivateKeyDer<'static> =
-            rustls_pemfile::private_key(&mut &client_key_pem[..])
-                .unwrap()
-                .unwrap();
+            PrivateKeyDer::from_pem_slice(client_key_pem).unwrap();
 
         let provider = Arc::new(rustls::crypto::ring::default_provider());
         rustls::ClientConfig::builder_with_provider(provider)
@@ -1307,8 +1300,9 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Client config without any client certificate.
+        use rustls_pki_types::pem::PemObject;
         let ca_certs: Vec<rustls_pki_types::CertificateDer<'static>> =
-            rustls_pemfile::certs(&mut &ca_cert[..])
+            rustls_pki_types::CertificateDer::pem_slice_iter(&ca_cert)
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
         let mut root_store = rustls::RootCertStore::empty();

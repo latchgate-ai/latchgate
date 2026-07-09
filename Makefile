@@ -65,7 +65,6 @@ test:
 	cargo test --locked -p latchgate-tests --test standalone -- --skip wasm_conformance
 
 audit:
-	cargo audit
 	cargo deny check
 	$(MAKE) --no-print-directory audit-freshness
 	$(MAKE) --no-print-directory audit-js

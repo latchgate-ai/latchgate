@@ -70,7 +70,6 @@ http-body-util = "0.1"
 # TLS (admin mTLS)
 rustls          = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
 tokio-rustls    = "0.26"
-rustls-pemfile  = "2"
 rustls-pki-types = "1"
 webpki-roots    = "1.0"
 
@@ -178,7 +177,7 @@ lettre        = { version = "0.11.22", default-features = false, features = ["to
 sqlx          = { version = "0.8.2", default-features = false, features = ["runtime-tokio-rustls", "postgres"] }
 lapin         = { version = "4.5", default-features = false, features = ["tokio", "rustls", "rustls-native-certs", "rustls--ring"] }
 deadpool      = { version = "0.13", features = ["managed", "rt_tokio_1"] }
-object_store  = { version = "0.13", features = ["aws", "gcp", "azure", "http"] }
+object_store  = { version = "0.14", features = ["aws", "gcp", "azure", "http"] }
 
 # ── Build profiles ─────────────────────────────────────────────────────────────
 
@@ -288,3 +287,5 @@ debug           = 1
 inherits = "release"
 strip    = false
 debug    = 2
+
+

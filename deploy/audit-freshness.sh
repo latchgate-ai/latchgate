@@ -8,6 +8,13 @@ MIN_AGE_DAYS="${MIN_AGE_DAYS:-7}"
 NOW=$(date +%s)
 FAILED=0
 
+# Crates allowed to bypass the freshness gate because an older version has
+# a known vulnerability and no version within the age window is safe.
+# Format: "name@version"   # RUSTSEC ID — short reason
+FRESHNESS_ALLOW=(
+    "crossbeam-epoch@0.9.20"  # RUSTSEC-2026-0204 — 0.9.19 has invalid pointer deref; 0.9.20 is the fix
+)
+
 echo "── Cargo dependency freshness check (min age: ${MIN_AGE_DAYS}d) ─────────────"
 
 # Extract name=version pairs from a Cargo.lock file.
@@ -64,8 +71,18 @@ while IFS='=' read -r name version; do
     AGE_DAYS=$(( (NOW - PUB_EPOCH) / 86400 ))
 
     if [ "$AGE_DAYS" -lt "$MIN_AGE_DAYS" ]; then
-        echo "Error: ${name}@${version} published ${AGE_DAYS}d ago (minimum: ${MIN_AGE_DAYS}d)"
-        FAILED=1
+        _allowed=0
+        for _entry in "${FRESHNESS_ALLOW[@]}"; do
+            if [ "${_entry%%#*}" = "${name}@${version}" ] || [ "${_entry%% *}" = "${name}@${version}" ]; then
+                _allowed=1; break
+            fi
+        done
+        if [ "$_allowed" -eq 1 ]; then
+            echo "  ${name}@${version} published ${AGE_DAYS}d ago — allowed (security override)"
+        else
+            echo "Error: ${name}@${version} published ${AGE_DAYS}d ago (minimum: ${MIN_AGE_DAYS}d)"
+            FAILED=1
+        fi
     fi
 done <<< "$CANDIDATES"
 
