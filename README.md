@@ -9,7 +9,7 @@ Execution security kernel for AI agents.
 ![Rust](https://img.shields.io/badge/rust-1.88%2B-orange?style=flat-square)
 [![Protected by CVE Lite CLI](https://img.shields.io/badge/Protected_by-CVE_Lite_CLI-brightgreen)](https://github.com/OWASP/cve-lite-cli)
 
-[Website](https://latchgate.ai) · [Docs](https://docs.latchgate.ai) · [Security model](https://docs.latchgate.ai/architecture/security-model/) · [Report a vulnerability](SECURITY.md)
+[Website](https://latchgate-ai.pages.dev) · [Docs](https://latchgate-docs.pages.dev) · [Security model](https://latchgate-docs.pages.dev/architecture/security-model/) · [Report a vulnerability](SECURITY.md)
 
 > [!IMPORTANT]
 > The security model is production-ready; the API and manifest format may have breaking changes until v1.0. Pin to a specific commit for production use.
@@ -50,7 +50,7 @@ For production deployments needing HA replay protection and defense-in-depth egr
 latchgate up --infra   # Redis + OPA + Squid in Docker
 ```
 
-For non-interactive setup (CI, Docker), see the [deployment guide](https://docs.latchgate.ai/deployment/).
+For non-interactive setup (CI, Docker), see the [deployment guide](https://latchgate-docs.pages.dev/deployment/).
 
 ## How it works
 
@@ -69,7 +69,7 @@ Request in
 Response out (only when evidence is durable)
 ```
 
-Default deny. The model never holds credentials, never has network access. Every protected side effect passes through one fail-closed pipeline, or it doesn't happen. See [Architecture](https://docs.latchgate.ai/architecture/) for the full pipeline breakdown.
+Default deny. The model never holds credentials, never has network access. Every protected side effect passes through one fail-closed pipeline, or it doesn't happen. See [Architecture](https://latchgate-docs.pages.dev/architecture/) for the full pipeline breakdown.
 
 ## Security model
 
@@ -85,7 +85,7 @@ Default deny. The model never holds credentials, never has network access. Every
 | Fail-closed | Redis down → deny. OPA down → deny. Budget exhausted → deny. No permissive fallback |
 | Agent sandbox | Linux user/network/mount/PID namespaces + Landlock LSM + seccomp-BPF; three exits: gate socket, HTTPS proxy, credential-injecting reverse proxy |
 
-Full threat model: [Security model](https://docs.latchgate.ai/security-model/) · [Security notes](https://latchgate.ai/security-notes)
+Full threat model: [Security model](https://latchgate-docs.pages.dev/security-model/) · [Security notes](https://latchgate-ai.pages.dev/security-notes)
 
 ## Agent sandbox
 
@@ -109,7 +109,7 @@ Built-in profiles: `claude-code`, `codex`, `cursor`, `opencode`, `aider`. Profil
 
 Even if the agent is fully compromised - prompt injection, supply chain attack, malicious plugin - it cannot reach anything outside the namespace boundary. The only side effects it can trigger are those gated through LatchGate.
 
-Guide: [Agent sandbox](https://docs.latchgate.ai/guides/sandbox/) · [Profiles, credential routes, and user-defined routes](https://docs.latchgate.ai/guides/sandbox/#agent-profiles)
+Guide: [Agent sandbox](https://latchgate-docs.pages.dev/guides/sandbox/) · [Profiles, credential routes, and user-defined routes](https://latchgate-docs.pages.dev/guides/sandbox/#agent-profiles)
 
 ## Security Standards
 
@@ -117,7 +117,7 @@ LatchGate's controls map to [OWASP Top 10 for LLM Applications (2025)](https://o
 
 Supply-chain assurance: WASM modules and container images pinned by SHA-256 digest. `Cargo.lock` committed, `--locked` enforced. `cargo deny`, `cargo audit`, `pip-audit`, `cve-lite-cli`, Dependabot, CodeQL `security-extended`, and six coverage-guided fuzz targets on trust-boundary parsers.
 
-Full mapping: [Security model](https://docs.latchgate.ai/security-model/) · [Security notes](https://latchgate.ai/security-notes)
+Full mapping: [Security model](https://latchgate-docs.pages.dev/security-model/) · [Security notes](https://latchgate-ai.pages.dev/security-notes)
 
 ## Integrations
 
@@ -139,7 +139,7 @@ Restart the IDE. LatchGate-registered actions appear as MCP tools alongside the 
 | OpenAI Agents | `pip install latchgate-openai-agents` |
 | Pydantic AI | `pip install latchgate-pydantic-ai` |
 
-Each integration auto-discovers actions and wraps them as native framework tools. Guides: [docs.latchgate.ai/integrations](https://docs.latchgate.ai/integrations/)
+Each integration auto-discovers actions and wraps them as native framework tools. Guides: [docs.latchgate.ai/integrations](https://latchgate-docs.pages.dev/integrations/)
 
 ### SDKs
 

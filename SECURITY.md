@@ -14,7 +14,7 @@ Only the latest release receives security updates. Pin to a specific version for
 **Do not open a public issue.**
 
 1. **Preferred:** use [GitHub Private Vulnerability Reporting](https://github.com/latchgate-ai/latchgate/security/advisories/new).
-2. **Fallback:** email security@latchgate.ai with subject `[LatchGate Security]`.
+2. **Fallback:** email m2papierz@gmail.com with subject `[LatchGate Security]`.
 
 Include:
 - Description of the vulnerability and its impact
@@ -81,4 +81,4 @@ This policy covers all components of the LatchGate security boundary:
 
 ## Threat Model
 
-See the [Security Model](https://docs.latchgate.ai/security-model/) for trust boundaries, threat model, defense-in-depth layers, fail-closed behavior, and explicit non-goals. See [Architecture](https://docs.latchgate.ai/architecture/) for the system layer diagram, crate layout, and security invariants.
+See the [Security Model](https://latchgate-docs.pages.dev/security-model/) for trust boundaries, threat model, defense-in-depth layers, fail-closed behavior, and explicit non-goals. See [Architecture](https://latchgate-docs.pages.dev/architecture/) for the system layer diagram, crate layout, and security invariants.

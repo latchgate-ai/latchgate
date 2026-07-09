@@ -245,8 +245,8 @@ Before marking a PR ready for review:
 Changes that touch the kernel pipeline, auth, DPoP verification, policy evaluation, WASM runtime, host I/O, grant/receipt signing, or the approval path receive extra scrutiny during review. For these changes:
 
 1. Describe the security impact in the PR description.
-2. Reference the relevant security invariant from the [security model](https://docs.latchgate.ai/security-model/) or the `// SECURITY:` comments.
+2. Reference the relevant security invariant from the [security model](https://latchgate-docs.pages.dev/security-model/) or the `// SECURITY:` comments.
 3. Add or update regression tests in `tests/standalone/`.
-4. If the change affects the threat model or trust boundaries, update [https://docs.latchgate.ai/security-model/](https://docs.latchgate.ai/security-model/).
+4. If the change affects the threat model or trust boundaries, update [https://latchgate-docs.pages.dev/security-model/](https://latchgate-docs.pages.dev/security-model/).
 
 We review security-sensitive PRs with at least two pairs of eyes and may ask for additional test coverage before merging.
