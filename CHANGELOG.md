@@ -7,7 +7,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
-## [0.2.0-rc.1] — 2026-07-09
+## [0.2.0-rc.2] — 2026-07-09
 
 ### Added
 
@@ -305,7 +305,7 @@ AI SDK, OpenAI Agents, Pydantic AI.
 
 - Source tree reorganized for clarity: `wit/` => `providers/wit/`, `spec/` => `definitions/`, `policies/` => `definitions/policies/`. Install-output layouts (`.latchgate/`, `share/latchgate/`) unchanged.
 
-[0.2.0-rc.1]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.2.0-rc.1
+[0.2.0-rc.2]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.2.0-rc.2
 [0.1.4]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.4
 [0.1.3]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.3
 [0.1.2]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.2
