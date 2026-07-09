@@ -93,7 +93,6 @@ skip = [
     { name = "wasm-encoder",   version = "0.248" },
     { name = "wast",           version = "35" },
     { name = "winnow",         version = "0.7" },
-    { name = "wit-bindgen",    version = "0.51" },
 
     # wasmtime 45 pulls reqwest 0.13 transitively; workspace pins 0.12
     { name = "reqwest",        version = "0.12" },
