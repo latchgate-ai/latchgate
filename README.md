@@ -50,7 +50,7 @@ For production deployments needing HA replay protection and defense-in-depth egr
 latchgate up --infra   # Redis + OPA + Squid in Docker
 ```
 
-For non-interactive setup (CI, Docker), see the [deployment guide](https://latchgate-docs.pages.dev/deployment/).
+For non-interactive setup (CI, Docker), see the [deployment guide](https://latchgate-docs.pages.dev/guides/deployment/).
 
 ## How it works
 
@@ -69,9 +69,9 @@ Request in
 Response out (only when evidence is durable)
 ```
 
-Default deny. The model never holds credentials, never has network access. Every protected side effect passes through one fail-closed pipeline, or it doesn't happen. See [Architecture](https://latchgate-docs.pages.dev/architecture/) for the full pipeline breakdown.
+Default deny. The model never holds credentials, never has network access. Every protected side effect passes through one fail-closed pipeline, or it doesn't happen. See [Architecture](https://latchgate-docs.pages.dev/architecture/system/) for the full pipeline breakdown.
 
-## Security model
+## Security model & standards
 
 | Property | How |
 |---|---|
@@ -85,7 +85,11 @@ Default deny. The model never holds credentials, never has network access. Every
 | Fail-closed | Redis down → deny. OPA down → deny. Budget exhausted → deny. No permissive fallback |
 | Agent sandbox | Linux user/network/mount/PID namespaces + Landlock LSM + seccomp-BPF; three exits: gate socket, HTTPS proxy, credential-injecting reverse proxy |
 
-Full threat model: [Security model](https://latchgate-docs.pages.dev/security-model/) · [Security notes](https://latchgate-ai.pages.dev/security-notes)
+LatchGate's controls map to [OWASP Top 10 for LLM Applications (2025)](https://owasp.org/www-project-top-10-for-large-language-model-applications/) — covering prompt injection blast-radius containment (LLM01), credential isolation (LLM02), supply-chain verification (LLM03), output validation (LLM05), excessive agency (LLM06), and unbounded consumption (LLM10) — and to all four functions of the [NIST AI RMF 1.0](https://www.nist.gov/artificial-intelligence/risk-management-framework) (Govern, Map, Measure, Manage).
+
+Supply-chain assurance: WASM modules and container images pinned by SHA-256 digest. `Cargo.lock` committed, `--locked` enforced. `cargo deny`, `cargo audit`, `pip-audit`, `cve-lite-cli`, Dependabot, CodeQL `security-extended`, and six coverage-guided fuzz targets on trust-boundary parsers.
+
+Full threat model: [Security model](https://latchgate-docs.pages.dev/architecture/security-model/) · [Security notes](https://latchgate-ai.pages.dev/security-notes)
 
 ## Agent sandbox
 
@@ -111,14 +115,6 @@ Even if the agent is fully compromised - prompt injection, supply chain attack, 
 
 Guide: [Agent sandbox](https://latchgate-docs.pages.dev/guides/sandbox/) · [Profiles, credential routes, and user-defined routes](https://latchgate-docs.pages.dev/guides/sandbox/#agent-profiles)
 
-## Security Standards
-
-LatchGate's controls map to [OWASP Top 10 for LLM Applications (2025)](https://owasp.org/www-project-top-10-for-large-language-model-applications/) — covering prompt injection blast-radius containment (LLM01), credential isolation (LLM02), supply-chain verification (LLM03), output validation (LLM05), excessive agency (LLM06), and unbounded consumption (LLM10) — and to all four functions of the [NIST AI RMF 1.0](https://www.nist.gov/artificial-intelligence/risk-management-framework) (Govern, Map, Measure, Manage).
-
-Supply-chain assurance: WASM modules and container images pinned by SHA-256 digest. `Cargo.lock` committed, `--locked` enforced. `cargo deny`, `cargo audit`, `pip-audit`, `cve-lite-cli`, Dependabot, CodeQL `security-extended`, and six coverage-guided fuzz targets on trust-boundary parsers.
-
-Full mapping: [Security model](https://latchgate-docs.pages.dev/security-model/) · [Security notes](https://latchgate-ai.pages.dev/security-notes)
-
 ## Integrations
 
 ### IDE agents (MCP)
@@ -139,7 +135,7 @@ Restart the IDE. LatchGate-registered actions appear as MCP tools alongside the 
 | OpenAI Agents | `pip install latchgate-openai-agents` |
 | Pydantic AI | `pip install latchgate-pydantic-ai` |
 
-Each integration auto-discovers actions and wraps them as native framework tools. Guides: [docs.latchgate.ai/integrations](https://latchgate-docs.pages.dev/integrations/)
+Each integration auto-discovers actions and wraps them as native framework tools. Frameworks repository: [https://github.com/latchgate-ai/latchgate-integrations](https://github.com/latchgate-ai/latchgate-integrations)
 
 ### SDKs
 
