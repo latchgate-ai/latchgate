@@ -16,7 +16,7 @@
 
 # ── Builder ──────────────────────────────────────────────────────────────────
 
-FROM rust:1.93-alpine@sha256:4fec02de605563c297c78a31064c8335bc004fa2b0bf406b1b99441da64e2d2d AS builder
+FROM rust:1.97-alpine@sha256:ec9c91e77119ce498cd1e87d96d77e0f75b2cee21655a29bc2bf75a51a2b20a4 AS builder
 
 # TARGETARCH is set automatically by BuildKit (amd64, arm64).
 ARG TARGETARCH
