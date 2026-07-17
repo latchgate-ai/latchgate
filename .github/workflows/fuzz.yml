@@ -58,7 +58,7 @@ jobs:
           save-if: false
 
       - name: Install cargo-fuzz
-        uses: taiki-e/install-action@59012be0884e296ca2da49b530610e72c49039ad # v2
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2
         with:
           tool: cargo-fuzz
 
@@ -100,7 +100,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@5b842231ba77f5c045dba54ac5560fed2db780e2 # nightly
 
       - name: Install cargo-fuzz
-        uses: taiki-e/install-action@59012be0884e296ca2da49b530610e72c49039ad # v2
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2
         with:
           tool: cargo-fuzz
 
